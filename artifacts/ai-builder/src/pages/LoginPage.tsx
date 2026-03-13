@@ -1,13 +1,80 @@
-import { useState } from "react";
-import { Sparkles, Zap, Eye, Loader2, Mail, Lock, User } from "lucide-react";
+import { useState, useRef } from "react";
+import {
+  Loader2, Mail, Lock, User, Check, Zap, ChevronDown,
+  Rocket, History, Globe, Code2, MessageSquare, CreditCard,
+  ArrowRight, Star
+} from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { ProntoLogoMark } from "@/components/ProntoLogo";
 
 type Mode = "login" | "register";
 
-export function LoginPage() {
-  const { setUser } = useAuth() as any;
-  const [mode, setMode] = useState<Mode>("login");
+const PRICING = [
+  {
+    name: "Free",
+    price: "$0",
+    period: "to start",
+    credits: "50,000",
+    requests: "~10",
+    badge: null,
+    color: "border-border",
+    headerBg: "bg-muted/30",
+    cta: "Start for free",
+    ctaStyle: "bg-muted hover:bg-muted/80 text-foreground",
+    noCard: true,
+    features: [
+      "50,000 AI credits included",
+      "Unlimited projects",
+      "Live preview sandbox",
+      "6 starter templates",
+      "Version history",
+      "One-click deployment",
+    ],
+  },
+  {
+    name: "Starter",
+    price: "$5",
+    period: "one-time",
+    credits: "500,000",
+    requests: "~100",
+    badge: "Most popular",
+    color: "border-primary",
+    headerBg: "bg-primary/10",
+    cta: "Get Starter credits",
+    ctaStyle: "bg-primary hover:bg-primary/90 text-primary-foreground",
+    noCard: false,
+    features: [
+      "500,000 AI credits",
+      "No subscription ever",
+      "Credits never expire",
+      "Everything in Free",
+      "Priority support",
+    ],
+  },
+  {
+    name: "Pro",
+    price: "$15",
+    period: "one-time",
+    credits: "2,000,000",
+    requests: "~400",
+    badge: "Best value",
+    color: "border-violet-500/50",
+    headerBg: "bg-violet-500/10",
+    cta: "Get Pro credits",
+    ctaStyle: "bg-violet-600 hover:bg-violet-700 text-white",
+    noCard: false,
+    features: [
+      "2,000,000 AI credits",
+      "No subscription ever",
+      "Credits never expire",
+      "Everything in Free",
+      "Priority support",
+    ],
+  },
+];
+
+function AuthForm({ defaultMode, onSuccess }: { defaultMode: Mode; onSuccess: (user: any) => void }) {
+  const [mode, setMode] = useState<Mode>(defaultMode);
   const [firstName, setFirstName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,184 +82,371 @@ export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const switchMode = (m: Mode) => { setMode(m); setError(null); setPassword(""); setConfirmPassword(""); };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    if (mode === "register" && password !== confirmPassword) {
-      setError("Passwords don't match");
-      return;
-    }
-
+    if (mode === "register" && password !== confirmPassword) { setError("Passwords don't match"); return; }
     setIsLoading(true);
     try {
       const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
       const body: Record<string, string> = { email, password };
       if (mode === "register" && firstName.trim()) body.firstName = firstName.trim();
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(body),
-      });
-
+      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
       const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Something went wrong");
-        return;
-      }
-
-      setUser?.(data.user);
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const switchMode = (newMode: Mode) => {
-    setMode(newMode);
-    setError(null);
-    setPassword("");
-    setConfirmPassword("");
+      if (!res.ok) { setError(data.error ?? "Something went wrong"); return; }
+      onSuccess(data.user);
+    } catch { setError("Network error. Please try again."); }
+    finally { setIsLoading(false); }
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-accent/5 pointer-events-none" />
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl pointer-events-none" />
+    <div className="w-full bg-card border border-border rounded-2xl p-6 flex flex-col gap-4 shadow-2xl">
+      <div className="flex rounded-xl bg-muted p-1 gap-1">
+        {(["login", "register"] as Mode[]).map((m) => (
+          <button key={m} type="button" onClick={() => switchMode(m)}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${mode === m ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>
+            {m === "login" ? "Sign in" : "Create free account"}
+          </button>
+        ))}
+      </div>
 
-      <div className="relative z-10 w-full max-w-md flex flex-col items-center text-center gap-6">
-        <div className="flex flex-col items-center gap-4">
-          <ProntoLogoMark size={64} className="rounded-2xl shadow-2xl shadow-primary/30" />
-          <div>
-            <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">Pronto</h1>
-            <p className="text-muted-foreground mt-1">Build software at the speed of thought.</p>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        {mode === "register" && (
+          <div className="relative">
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input type="text" placeholder="First name (optional)" value={firstName} onChange={(e) => setFirstName(e.target.value)}
+              className="w-full bg-background border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
           </div>
+        )}
+        <div className="relative">
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email"
+            className="w-full bg-background border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
         </div>
-
-        <div className="grid grid-cols-3 gap-3 w-full">
-          {[
-            { icon: Sparkles, label: "Describe", desc: "Tell the AI what to build" },
-            { icon: Zap, label: "Generate", desc: "Code written in real time" },
-            { icon: Eye, label: "Preview", desc: "See it live instantly" },
-          ].map(({ icon: Icon, label, desc }) => (
-            <div key={label} className="bg-card border border-border/50 rounded-xl p-3 flex flex-col items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Icon className="w-4 h-4 text-primary" />
-              </div>
-              <span className="text-xs font-semibold text-foreground">{label}</span>
-              <span className="text-[10px] text-muted-foreground leading-tight">{desc}</span>
-            </div>
-          ))}
+        <div className="relative">
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required
+            autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 8 : undefined}
+            className="w-full bg-background border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
         </div>
+        {mode === "register" && (
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input type="password" placeholder="Confirm password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required autoComplete="new-password"
+              className="w-full bg-background border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+        )}
+        {error && <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">{error}</p>}
+        <button type="submit" disabled={isLoading}
+          className="w-full bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-semibold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/25">
+          {isLoading
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> {mode === "login" ? "Signing in…" : "Creating account…"}</>
+            : mode === "login" ? "Sign in" : "Create free account — no card needed"}
+        </button>
+      </form>
 
-        <div className="w-full bg-card border border-border rounded-2xl p-6 flex flex-col gap-5 shadow-xl">
-          <div className="flex rounded-xl bg-muted p-1 gap-1">
-            <button
-              type="button"
-              onClick={() => switchMode("login")}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-                mode === "login" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-              }`}
-            >
+      {mode === "register" && (
+        <div className="flex items-center gap-2 justify-center text-xs text-muted-foreground">
+          <Check className="w-3.5 h-3.5 text-green-400" />
+          <span>50,000 free credits included on signup</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function LoginPage() {
+  const { setUser } = useAuth() as any;
+  const signupRef = useRef<HTMLDivElement>(null);
+  const [showSignInModal, setShowSignInModal] = useState(false);
+
+  const scrollToSignup = () => {
+    signupRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  const handleSuccess = (user: any) => setUser?.(user);
+
+  return (
+    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+
+      {/* Background glows */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-primary/8 rounded-full blur-[120px]" />
+        <div className="absolute top-1/2 -right-40 w-[500px] h-[500px] bg-accent/6 rounded-full blur-[120px]" />
+        <div className="absolute -bottom-40 left-1/3 w-[400px] h-[400px] bg-violet-500/5 rounded-full blur-[100px]" />
+      </div>
+
+      {/* ── NAVBAR ── */}
+      <nav className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <ProntoLogoMark size={36} />
+            <span className="font-display font-bold text-lg text-foreground">Pronto</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => { setShowSignInModal(true); }}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5">
               Sign in
             </button>
-            <button
-              type="button"
-              onClick={() => switchMode("register")}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-                mode === "register" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-              }`}
-            >
-              Create account
+            <button onClick={scrollToSignup}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold px-4 py-2 rounded-xl transition-colors flex items-center gap-1.5">
+              Get started free <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
-
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            {mode === "register" && (
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="First name (optional)"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  className="w-full bg-background border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                />
-              </div>
-            )}
-
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="email"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                className="w-full bg-background border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
-            </div>
-
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-                minLength={mode === "register" ? 8 : undefined}
-                className="w-full bg-background border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
-            </div>
-
-            {mode === "register" && (
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="password"
-                  placeholder="Confirm password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  autoComplete="new-password"
-                  className="w-full bg-background border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                />
-              </div>
-            )}
-
-            {error && (
-              <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2 text-left">
-                {error}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-semibold py-3 px-6 rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-100 shadow-lg shadow-primary/25 flex items-center justify-center gap-2"
-            >
-              {isLoading ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> {mode === "login" ? "Signing in…" : "Creating account…"}</>
-              ) : (
-                mode === "login" ? "Sign in" : "Create account"
-              )}
-            </button>
-          </form>
-
-          {mode === "register" && (
-            <p className="text-xs text-muted-foreground">
-              Password must be at least 8 characters.
-            </p>
-          )}
         </div>
-      </div>
+      </nav>
+
+      {/* ── HERO ── */}
+      <section className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-12 md:pt-24 md:pb-20">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          <div className="space-y-6">
+            <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 text-sm text-primary font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              No subscription. No monthly fees.
+            </div>
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-display font-bold tracking-tight leading-[1.05]">
+              <span className="text-foreground">Build apps with</span>
+              <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-violet-400 to-accent">just words.</span>
+            </h1>
+            <p className="text-lg text-muted-foreground leading-relaxed max-w-lg">
+              Describe what you want in plain English. Pronto's AI writes every line of code, shows you a live preview, and deploys it — all in seconds.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button onClick={scrollToSignup}
+                className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 py-3 rounded-xl text-base transition-all shadow-lg shadow-primary/25 hover:scale-[1.02]">
+                Start building free <ArrowRight className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground px-4 py-3 bg-muted/30 rounded-xl border border-border/50">
+                <Check className="w-4 h-4 text-green-400 shrink-0" />
+                50,000 credits free — no card required
+              </div>
+            </div>
+            <div className="flex items-center gap-6 pt-2">
+              {[["⚡", "Real-time generation"], ["🔒", "Secure sandbox"], ["🚀", "Instant deploy"]].map(([emoji, label]) => (
+                <div key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span>{emoji}</span><span>{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Hero form */}
+          <div className="space-y-3">
+            <p className="text-center text-sm text-muted-foreground font-medium">Create your free account</p>
+            <AuthForm defaultMode="register" onSuccess={handleSuccess} />
+            <div className="grid grid-cols-3 gap-2 mt-2">
+              {[
+                { icon: MessageSquare, label: "Describe it" },
+                { icon: Code2, label: "AI builds it" },
+                { icon: Globe, label: "Deploy it" },
+              ].map(({ icon: Icon, label }) => (
+                <div key={label} className="bg-muted/30 border border-border/40 rounded-xl p-3 flex flex-col items-center gap-1.5 text-center">
+                  <Icon className="w-4 h-4 text-primary" />
+                  <span className="text-xs text-muted-foreground font-medium">{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ── */}
+      <section className="border-t border-border/50 py-16 md:py-24 bg-muted/20">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-12">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">How it works</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground">From idea to live app in minutes</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { n: "1", emoji: "💬", title: "Describe your app", body: "Type what you want in plain English — 'a to-do list with drag and drop' or 'a landing page for my coffee shop'. No technical knowledge needed." },
+              { n: "2", emoji: "⚡", title: "Watch AI build it", body: "Pronto streams code in real time as the AI writes every file. You see the live preview update instantly as the app takes shape." },
+              { n: "3", emoji: "🚀", title: "Publish with one click", body: "Hit Deploy and your app gets a public URL — shareable with anyone. Add your own domain. No servers to manage, ever." },
+            ].map(({ n, emoji, title, body }) => (
+              <div key={n} className="relative">
+                <div className="bg-card border border-border/60 rounded-2xl p-6 h-full">
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 text-primary text-sm font-bold flex items-center justify-center">{n}</span>
+                    <span className="text-2xl">{emoji}</span>
+                  </div>
+                  <h3 className="font-semibold text-foreground mb-2">{title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── PRICING ── */}
+      <section className="py-16 md:py-24">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-4">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">Pricing</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground">Pay once. Build forever.</h2>
+            <p className="text-muted-foreground mt-3 max-w-xl mx-auto">
+              No subscriptions. No monthly fees. Buy credits when you need them — they never expire.
+            </p>
+          </div>
+
+          {/* Competitor callout */}
+          <div className="flex items-center justify-center gap-3 mb-10 mt-6">
+            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-full px-4 py-2 text-sm text-green-400 font-medium">
+              <Check className="w-4 h-4" />
+              Up to 20× cheaper than Replit Agent ($25/mo subscription)
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {PRICING.map((plan) => (
+              <div key={plan.name} className={`relative bg-card rounded-2xl border-2 ${plan.color} overflow-hidden flex flex-col`}>
+                {plan.badge && (
+                  <div className="absolute top-3 right-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground px-2.5 py-1 rounded-full flex items-center gap-1">
+                      <Star className="w-2.5 h-2.5" /> {plan.badge}
+                    </span>
+                  </div>
+                )}
+                <div className={`${plan.headerBg} px-6 py-5 border-b border-border/50`}>
+                  <p className="text-sm font-semibold text-muted-foreground mb-1">{plan.name}</p>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-4xl font-bold text-foreground">{plan.price}</span>
+                    <span className="text-sm text-muted-foreground">{plan.period}</span>
+                  </div>
+                  <div className="mt-2 space-y-0.5">
+                    <p className="text-sm font-semibold text-foreground">{plan.credits} AI credits</p>
+                    <p className="text-xs text-muted-foreground">{plan.requests} app generations</p>
+                  </div>
+                </div>
+                <div className="px-6 py-5 flex-1">
+                  <ul className="space-y-2.5">
+                    {plan.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <Check className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="px-6 pb-5">
+                  <button onClick={scrollToSignup}
+                    className={`w-full ${plan.ctaStyle} font-semibold py-2.5 rounded-xl text-sm transition-colors`}>
+                    {plan.cta}
+                  </button>
+                  {plan.noCard && (
+                    <p className="text-center text-[11px] text-muted-foreground mt-2">No credit card required</p>
+                  )}
+                  {!plan.noCard && (
+                    <p className="text-center text-[11px] text-muted-foreground mt-2 flex items-center justify-center gap-1">
+                      <CreditCard className="w-3 h-3" /> Secure checkout via Stripe
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* How credits work */}
+          <div className="mt-10 bg-muted/30 border border-border/50 rounded-2xl p-6">
+            <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+              <Zap className="w-4 h-4 text-primary" /> How credits work
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-muted-foreground">
+              <div className="flex gap-3">
+                <span className="text-xl shrink-0">1️⃣</span>
+                <div><p className="font-medium text-foreground mb-0.5">Sign up free</p><p>Get 50,000 credits instantly. No credit card, no commitment.</p></div>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-xl shrink-0">2️⃣</span>
+                <div><p className="font-medium text-foreground mb-0.5">Build your app</p><p>Each AI generation uses ~5,000 credits. Your free credits cover ~10 full generations.</p></div>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-xl shrink-0">3️⃣</span>
+                <div><p className="font-medium text-foreground mb-0.5">Top up anytime</p><p>When credits run low, buy a pack in-app via Stripe. Secure, instant, one-time charge.</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FEATURES GRID ── */}
+      <section className="border-t border-border/50 py-16 md:py-24 bg-muted/20">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-foreground">Everything you need to ship</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { emoji: "🗣️", title: "Natural Language", desc: "Just describe what you want — no syntax, no frameworks to learn." },
+              { emoji: "⚡", title: "Real-Time Streaming", desc: "Watch every line of code appear as the AI writes it." },
+              { emoji: "👁️", title: "Live Preview", desc: "See your app running instantly in a secure sandbox." },
+              { emoji: "🕹️", title: "Version History", desc: "Every generation auto-saved. Roll back with one click." },
+              { emoji: "🚀", title: "Instant Deployment", desc: "Publish to a public URL in seconds. Zero DevOps." },
+              { emoji: "🌐", title: "Custom Domains", desc: "Connect your own domain to any deployed project." },
+              { emoji: "🧩", title: "Starter Templates", desc: "6 polished templates to kick off your project in style." },
+              { emoji: "💳", title: "Pay As You Go", desc: "Buy only what you need. Credits never expire." },
+              { emoji: "🔒", title: "Secure by Default", desc: "Apps run in an isolated sandbox. Your code stays private." },
+            ].map((f) => (
+              <div key={f.title} className="bg-card border border-border/50 rounded-xl p-5 hover:border-primary/30 hover:scale-[1.01] transition-all">
+                <div className="text-2xl mb-2">{f.emoji}</div>
+                <h3 className="font-semibold text-foreground mb-1">{f.title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── SIGN UP SECTION ── */}
+      <section ref={signupRef} className="py-16 md:py-24">
+        <div className="max-w-lg mx-auto px-4 sm:px-6 text-center space-y-6">
+          <div className="text-5xl">✨</div>
+          <h2 className="text-3xl md:text-4xl font-bold text-foreground">Start building in 30 seconds</h2>
+          <p className="text-muted-foreground">
+            Create a free account and get 50,000 AI credits immediately.
+            No credit card required to start.
+          </p>
+          <AuthForm defaultMode="register" onSuccess={handleSuccess} />
+          <p className="text-xs text-muted-foreground">
+            Already have an account?{" "}
+            <button onClick={() => setShowSignInModal(true)} className="text-primary hover:underline font-medium">Sign in</button>
+          </p>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer className="border-t border-border/50 py-8 bg-muted/20">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <ProntoLogoMark size={24} />
+            <span className="font-semibold text-foreground">Pronto</span>
+            <span>— Build software at the speed of thought.</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <CreditCard className="w-3.5 h-3.5" />
+            Payments secured by Stripe
+          </div>
+        </div>
+      </footer>
+
+      {/* ── SIGN IN MODAL ── */}
+      {showSignInModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setShowSignInModal(false)}>
+          <div className="w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center gap-2">
+                <ProntoLogoMark size={28} />
+                <span className="font-bold text-foreground">Sign in to Pronto</span>
+              </div>
+              <button onClick={() => setShowSignInModal(false)} className="text-muted-foreground hover:text-foreground text-lg leading-none">✕</button>
+            </div>
+            <AuthForm defaultMode="login" onSuccess={(user) => { setShowSignInModal(false); handleSuccess(user); }} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
