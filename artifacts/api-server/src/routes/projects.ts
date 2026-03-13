@@ -11,7 +11,7 @@ import {
   SendProjectMessageBody,
   UpdateProjectFileBody,
 } from "@workspace/api-zod";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { getAIClient } from "../lib/ai-client";
 
 const router: IRouter = Router();
 
@@ -202,6 +202,7 @@ Rules:
   let fullResponse = "";
 
   try {
+    const anthropic = await getAIClient();
     const stream = anthropic.messages.stream({
       model: "claude-sonnet-4-6",
       max_tokens: 8192,
