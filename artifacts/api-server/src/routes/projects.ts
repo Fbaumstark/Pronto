@@ -1,10 +1,13 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, desc, max } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   projectsTable,
   projectFilesTable,
   projectMessagesTable,
+  projectVersionsTable,
+  creditLedgerTable,
+  templatesTable,
 } from "@workspace/db";
 import {
   CreateProjectBody,
@@ -13,54 +16,97 @@ import {
 } from "@workspace/api-zod";
 import { getAIClient } from "../lib/ai-client";
 
+const FREE_CREDITS = 50000;
+const CREDITS_PER_REQUEST = 5000;
+
+async function ensureFreeCredits(userId: string) {
+  const existing = await db
+    .select()
+    .from(creditLedgerTable)
+    .where(eq(creditLedgerTable.userId, userId));
+  if (existing.length === 0) {
+    await db.insert(creditLedgerTable).values({
+      userId,
+      amount: FREE_CREDITS,
+      type: "signup_bonus",
+      description: "Free credits on signup",
+    });
+  }
+}
+
+async function getUserBalance(userId: string): Promise<number> {
+  const result = await db
+    .select()
+    .from(creditLedgerTable)
+    .where(eq(creditLedgerTable.userId, userId));
+  return result.reduce((sum, r) => sum + r.amount, 0);
+}
+
+async function saveVersion(projectId: number) {
+  const files = await db
+    .select()
+    .from(projectFilesTable)
+    .where(eq(projectFilesTable.projectId, projectId));
+
+  const lastVersion = await db
+    .select({ max: max(projectVersionsTable.versionNumber) })
+    .from(projectVersionsTable)
+    .where(eq(projectVersionsTable.projectId, projectId));
+
+  const nextVersion = (lastVersion[0]?.max ?? 0) + 1;
+
+  await db.insert(projectVersionsTable).values({
+    projectId,
+    versionNumber: nextVersion,
+    label: `Auto-save v${nextVersion}`,
+    filesSnapshot: files.map((f) => ({
+      filename: f.filename,
+      content: f.content,
+      language: f.language,
+    })),
+  });
+}
+
 const router: IRouter = Router();
 
-router.get("/projects", async (_req, res) => {
-  const projects = await db
-    .select()
-    .from(projectsTable)
-    .orderBy(projectsTable.createdAt);
+router.get("/projects", async (req, res) => {
+  const userId = req.isAuthenticated() ? req.user.id : null;
+  const projects = userId
+    ? await db.select().from(projectsTable).where(eq(projectsTable.userId, userId)).orderBy(desc(projectsTable.updatedAt))
+    : await db.select().from(projectsTable).orderBy(desc(projectsTable.updatedAt));
   res.json(projects);
 });
 
 router.post("/projects", async (req, res) => {
   const body = CreateProjectBody.parse(req.body);
+  const userId = req.isAuthenticated() ? req.user.id : null;
+
+  if (userId) await ensureFreeCredits(userId);
+
   const [project] = await db
     .insert(projectsTable)
-    .values({ name: body.name, description: body.description })
+    .values({ name: body.name, description: body.description, userId: userId ?? undefined })
     .returning();
 
-  const starterHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${body.name}</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-      background: #f9fafb;
-    }
-    h1 { color: #111827; }
-  </style>
-</head>
-<body>
-  <h1>Welcome to ${body.name}</h1>
-  <p>Start chatting to build your app!</p>
-</body>
-</html>`;
+  let starterFiles: { filename: string; content: string; language: string }[] = [];
 
-  await db.insert(projectFilesTable).values({
-    projectId: project.id,
-    filename: "index.html",
-    content: starterHtml,
-    language: "html",
-  });
+  const templateId = (req.body as any).templateId;
+  if (templateId) {
+    const [template] = await db.select().from(templatesTable).where(eq(templatesTable.id, parseInt(templateId)));
+    if (template) starterFiles = template.files;
+  }
+
+  if (starterFiles.length === 0) {
+    starterFiles = [{
+      filename: "index.html",
+      content: `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <title>${body.name}</title>\n  <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f9fafb;}h1{color:#111827;}</style>\n</head>\n<body>\n  <h1>Welcome to ${body.name}</h1>\n  <p>Start chatting to build your app!</p>\n</body>\n</html>`,
+      language: "html",
+    }];
+  }
+
+  for (const f of starterFiles) {
+    await db.insert(projectFilesTable).values({ projectId: project.id, ...f });
+  }
 
   res.status(201).json(project);
 });
@@ -140,6 +186,16 @@ router.post("/projects/:id/messages", async (req, res) => {
   if (!project) {
     res.status(404).json({ error: "Project not found" });
     return;
+  }
+
+  const userId = req.isAuthenticated() ? req.user.id : null;
+  if (userId) {
+    await ensureFreeCredits(userId);
+    const balance = await getUserBalance(userId);
+    if (balance < CREDITS_PER_REQUEST) {
+      res.status(402).json({ error: "Insufficient credits. Please add more credits to continue." });
+      return;
+    }
   }
 
   await db.insert(projectMessagesTable).values({
@@ -300,7 +356,19 @@ Rules:
       content: fullResponse,
     });
 
-    res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
+    await saveVersion(projectId);
+
+    if (userId) {
+      await db.insert(creditLedgerTable).values({
+        userId,
+        amount: -CREDITS_PER_REQUEST,
+        type: "ai_generation",
+        description: `AI generation for project ${projectId}`,
+      });
+    }
+
+    const newBalance = userId ? await getUserBalance(userId) : null;
+    res.write(`data: ${JSON.stringify({ type: "done", creditsRemaining: newBalance })}\n\n`);
     res.end();
   } catch (err) {
     console.error("Streaming error:", err);

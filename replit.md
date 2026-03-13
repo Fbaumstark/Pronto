@@ -51,12 +51,21 @@ artifacts-monorepo/
 - **Code editor**: CodeMirror syntax-highlighted code viewer
 - **Responsive preview**: Desktop, tablet, and mobile preview modes
 - **AI Provider toggle**: Switch between Replit AI Integration and own Anthropic API key
+- **Templates**: 6 built-in starter templates (Landing Page, Portfolio, Dashboard, Todo App, Blog, E-Commerce)
+- **Version History**: Auto-snapshot saved after every AI generation; restore any prior version
+- **Deployment**: One-click publish to stable public URL (`/api/published/:slug`); take offline anytime
+- **Custom Domains**: Attach a custom domain to a deployed project (CNAME-based)
+- **Credits system**: 50,000 free credits on signup; 5,000 deducted per AI request; balance shown in sidebar
 
 ## Database Schema
 
-- `projects` — project name, description, timestamps
+- `projects` — project name, description, userId (FK), timestamps
 - `project_files` — files per project (filename, content, language)
 - `project_messages` — chat history per project (role, content)
+- `project_versions` — file snapshots (projectId, versionNumber, label, filesSnapshot JSON)
+- `deployments` — deployment records (projectId, slug, customDomain, isLive)
+- `credit_ledger` — credit transactions (userId, amount, type, description)
+- `templates` — starter templates (name, description, category, emoji, files JSON)
 - `app_settings` — AI provider setting + optional own Anthropic API key
 - `users` — Replit Auth user records (id, email, firstName, lastName, profileImageUrl)
 - `sessions` — server-side session storage for auth
@@ -65,15 +74,25 @@ artifacts-monorepo/
 
 All routes prefixed with `/api`:
 
-- `GET /projects` — list all projects
-- `POST /projects` — create project
+- `GET /projects` — list projects (filtered by userId when authenticated)
+- `POST /projects` — create project (optional templateId in body)
 - `GET /projects/:id` — get project with files + messages
 - `DELETE /projects/:id` — delete project
 - `GET /projects/:id/files` — list files
 - `GET /projects/:id/messages` — list messages
-- `POST /projects/:id/messages` — send message (SSE streaming)
+- `POST /projects/:id/messages` — send message (SSE streaming, deducts 5k credits, auto-saves version)
 - `GET /projects/:id/preview` — serve HTML preview
 - `PUT /projects/:projectId/files/:fileId` — update file content
+- `GET /templates` — list all templates
+- `GET /projects/:id/versions` — list version snapshots
+- `POST /projects/:id/versions/restore/:versionId` — restore a version
+- `GET /projects/:id/deployment` — get deployment status
+- `POST /projects/:id/deploy` — deploy/redeploy project
+- `POST /projects/:id/undeploy` — take project offline
+- `PUT /projects/:id/deployment/domain` — set custom domain
+- `GET /published/:slug` — serve published app (public, no auth)
+- `GET /credits` — get current user credit balance
+- `GET /credits/history` — get credit transaction history
 
 ## How AI Code Generation Works
 

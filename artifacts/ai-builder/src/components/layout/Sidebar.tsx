@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useListProjects, useCreateProject, useDeleteProject } from "@workspace/api-client-react";
-import { Plus, FolderGit2, Trash2, Code2, Loader2, X, Settings, LogOut } from "lucide-react";
+import { Plus, FolderGit2, Trash2, Code2, Loader2, X, Settings, LogOut, Coins, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { formatDistanceToNow } from "date-fns";
 import { SettingsModal } from "./SettingsModal";
 import { useAuth } from "@workspace/replit-auth-web";
+import { TemplatePicker } from "@/components/templates/TemplatePicker";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -13,9 +13,51 @@ interface SidebarProps {
   isMobileDrawer?: boolean;
 }
 
+interface Template {
+  id: number;
+  name: string;
+  description: string;
+  category: string;
+  emoji: string;
+}
+
+function CreditsDisplay() {
+  const [balance, setBalance] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/credits")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setBalance(d.balance); })
+      .catch(() => {});
+  }, []);
+
+  if (balance === null) return null;
+
+  const pct = Math.min(100, (balance / 50000) * 100);
+  const color = pct > 50 ? "bg-green-500" : pct > 20 ? "bg-yellow-500" : "bg-red-500";
+
+  return (
+    <div className="px-2 py-2 border border-border/40 rounded-xl bg-muted/30 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Coins className="w-3.5 h-3.5" />
+          <span>Credits</span>
+        </div>
+        <span className="text-xs font-semibold text-foreground">{balance.toLocaleString()}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-border overflow-hidden">
+        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: SidebarProps) {
   const [location, setLocation] = useLocation();
   const [isCreating, setIsCreating] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDesc, setNewProjectDesc] = useState("");
   const [showSettings, setShowSettings] = useState(false);
@@ -25,14 +67,25 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
   const createMutation = useCreateProject();
   const deleteMutation = useDeleteProject();
 
+  useEffect(() => {
+    if (isCreating && templates.length === 0) {
+      fetch("/api/templates")
+        .then((r) => r.json())
+        .then(setTemplates)
+        .catch(() => {});
+    }
+  }, [isCreating]);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
     try {
       const newProj = await createMutation.mutateAsync({
-        data: { name: newProjectName, description: newProjectDesc }
+        data: { name: newProjectName, description: newProjectDesc, ...(selectedTemplateId !== null ? { templateId: selectedTemplateId } : {}) } as any,
       });
       setIsCreating(false);
+      setShowTemplates(false);
+      setSelectedTemplateId(null);
       setNewProjectName("");
       setNewProjectDesc("");
       setLocation(`/project/${newProj.id}`);
@@ -101,14 +154,34 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
                 className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 mb-2"
                 placeholder="Project Name..."
                 value={newProjectName}
-                onChange={e => setNewProjectName(e.target.value)}
+                onChange={(e) => setNewProjectName(e.target.value)}
               />
               <input
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 mb-3"
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 mb-2"
                 placeholder="Description (optional)"
                 value={newProjectDesc}
-                onChange={e => setNewProjectDesc(e.target.value)}
+                onChange={(e) => setNewProjectDesc(e.target.value)}
               />
+
+              <button
+                type="button"
+                onClick={() => setShowTemplates(!showTemplates)}
+                className="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground mb-2 px-1 transition-colors"
+              >
+                <span>{selectedTemplateId !== null ? `Template: ${templates.find(t => t.id === selectedTemplateId)?.name}` : "Choose a template (optional)"}</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${showTemplates ? "rotate-180" : ""}`} />
+              </button>
+
+              {showTemplates && (
+                <div className="mb-3">
+                  <TemplatePicker
+                    templates={templates}
+                    selectedId={selectedTemplateId}
+                    onSelect={setSelectedTemplateId}
+                  />
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <button
                   type="submit"
@@ -119,7 +192,7 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsCreating(false)}
+                  onClick={() => { setIsCreating(false); setShowTemplates(false); setSelectedTemplateId(null); }}
                   className="flex-1 bg-muted hover:bg-muted-foreground/20 text-foreground text-xs font-semibold py-2 rounded-lg transition-colors"
                 >
                   Cancel
@@ -145,13 +218,13 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
                     className={`
                       group flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all duration-200
                       ${isActive
-                        ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                       }
                     `}
                   >
                     <div className="flex items-center gap-3 truncate">
-                      <FolderGit2 className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`} />
+                      <FolderGit2 className={`w-4 h-4 shrink-0 ${isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"}`} />
                       <div className="truncate">
                         <span className="truncate block">{project.name}</span>
                         {isActive && (
@@ -179,7 +252,9 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
         )}
       </div>
 
-      <div className="p-4 border-t border-border/50 space-y-1">
+      <div className="p-4 border-t border-border/50 space-y-2">
+        <CreditsDisplay />
+
         <button
           onClick={() => setShowSettings(true)}
           className="w-full flex items-center gap-3 px-2 py-2 hover:bg-muted/50 rounded-xl cursor-pointer transition-colors text-left"
