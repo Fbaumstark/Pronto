@@ -156,49 +156,39 @@ router.get("/credits/history", async (req, res) => {
   res.json(history);
 });
 
+const TOPUP_PRICE_ID = "price_1TAcQUGx0FO9OC64MQki3HyT";
+
 router.get("/credits/products", async (_req, res) => {
   try {
-    let rows: any[] = [];
-    try {
-      const result = await db.execute(sql`
-        SELECT
-          p.id as product_id,
-          p.name as product_name,
-          p.description as product_description,
-          p.metadata as product_metadata,
-          pr.id as price_id,
-          pr.unit_amount,
-          pr.currency,
-          pr.recurring
-        FROM stripe.products p
-        JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
-        WHERE p.active = true
-          AND (p.metadata->>'credits') IS NOT NULL
-        ORDER BY pr.unit_amount ASC
-      `);
-      rows = result.rows as any[];
-    } catch {
-      const stripe = await getUncachableStripeClient();
-      const { products, prices } = await stripe.listProductsWithPrices?.() ??
-        { products: [], prices: [] };
-      for (const product of products) {
-        if (!product.metadata?.credits) continue;
-        const productPrices = prices.filter((p: any) => p.product === product.id && p.active);
-        for (const price of productPrices) {
-          rows.push({
-            product_id: product.id,
-            product_name: product.name,
-            product_description: product.description,
-            product_metadata: product.metadata,
-            price_id: price.id,
-            unit_amount: price.unit_amount,
-            currency: price.currency,
-            recurring: price.recurring,
-          });
-        }
-      }
-    }
-    res.json({ data: rows });
+    const stripe = await getUncachableStripeClient();
+    const [monthlyPrice, topupPrice] = await Promise.all([
+      stripe.prices?.retrieve
+        ? stripe.prices.retrieve(MONTHLY_PRICE_ID, { expand: ["product"] })
+        : fetch(`https://api.stripe.com/v1/prices/${MONTHLY_PRICE_ID}?expand[]=product`, {
+            headers: { Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}` },
+          }).then((r: any) => r.json()),
+      stripe.prices?.retrieve
+        ? stripe.prices.retrieve(TOPUP_PRICE_ID, { expand: ["product"] })
+        : fetch(`https://api.stripe.com/v1/prices/${TOPUP_PRICE_ID}?expand[]=product`, {
+            headers: { Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}` },
+          }).then((r: any) => r.json()),
+    ]);
+
+    const toRow = (price: any) => {
+      const product = typeof price.product === "object" ? price.product : { name: "Pronto Plan", description: "" };
+      return {
+        product_id: product.id ?? price.product,
+        product_name: product.name ?? "Pronto Plan",
+        product_description: product.description ?? "",
+        product_metadata: product.metadata ?? {},
+        price_id: price.id,
+        unit_amount: price.unit_amount,
+        currency: price.currency,
+        recurring: price.recurring ?? null,
+      };
+    };
+
+    res.json({ data: [toRow(monthlyPrice), toRow(topupPrice)] });
   } catch (err: any) {
     console.error("Error fetching credit products:", err);
     res.status(500).json({ error: "Failed to fetch credit products" });
