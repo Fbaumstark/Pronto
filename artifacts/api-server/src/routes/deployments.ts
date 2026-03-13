@@ -40,7 +40,7 @@ router.post("/projects/:id/deploy", async (req, res) => {
       .returning();
     res.json(updated);
   } else {
-    const slug = nanoid(10);
+    const slug = `pronto-${nanoid(8)}`;
     const [created] = await db
       .insert(deploymentsTable)
       .values({ projectId, slug, isLive: true })
@@ -81,15 +81,14 @@ router.put("/projects/:id/deployment/domain", async (req, res) => {
   res.json(updated);
 });
 
-router.get("/published/:slug", async (req, res) => {
-  const { slug } = req.params;
+async function servePublishedApp(slug: string, res: any) {
   const [deployment] = await db
     .select()
     .from(deploymentsTable)
     .where(eq(deploymentsTable.slug, slug));
 
   if (!deployment || !deployment.isLive) {
-    res.status(404).send("<html><body><h2>App not found or unpublished.</h2></body></html>");
+    res.status(404).send(`<!DOCTYPE html><html><head><title>Not Found – Pronto</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0a0a0f;color:#fff}.box{text-align:center;padding:2rem}.logo{font-size:2rem;font-weight:800;background:linear-gradient(135deg,#6d28d9,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}.msg{color:#888;margin-top:.5rem}</style></head><body><div class="box"><div class="logo">⚡ Pronto</div><h2>App not found</h2><p class="msg">This app may have been unpublished or the link is incorrect.</p></div></body></html>`);
     return;
   }
 
@@ -106,6 +105,16 @@ router.get("/published/:slug", async (req, res) => {
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(indexFile.content);
+}
+
+// Clean branded URL: /api/p/pronto-xxxxxxxx
+router.get("/p/:slug", async (req, res) => {
+  await servePublishedApp(req.params.slug, res);
+});
+
+// Legacy route kept for backward compatibility
+router.get("/published/:slug", async (req, res) => {
+  await servePublishedApp(req.params.slug, res);
 });
 
 export default router;

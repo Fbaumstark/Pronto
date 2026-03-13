@@ -74,7 +74,7 @@ export function DeployPanel({ projectId }: DeployPanelProps) {
     }
   };
 
-  const publishedUrl = deployment?.isLive ? `${baseUrl}/api/published/${deployment.slug}` : null;
+  const publishedUrl = deployment?.isLive ? `${baseUrl}/api/p/${deployment.slug}` : null;
   const customUrl = deployment?.customDomain ? `https://${deployment.customDomain}` : null;
 
   return (
