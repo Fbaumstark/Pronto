@@ -1,16 +1,22 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useListProjects, useCreateProject, useDeleteProject } from "@workspace/api-client-react";
-import { Plus, FolderGit2, Trash2, Code2, Loader2, Menu } from "lucide-react";
+import { Plus, FolderGit2, Trash2, Code2, Loader2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  isMobileDrawer?: boolean;
+}
+
+export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: SidebarProps) {
   const [location, setLocation] = useLocation();
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDesc, setNewProjectDesc] = useState("");
-  
+
   const { data: projects, isLoading } = useListProjects();
   const createMutation = useCreateProject();
   const deleteMutation = useDeleteProject();
@@ -18,7 +24,6 @@ export function Sidebar() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
-    
     try {
       const newProj = await createMutation.mutateAsync({
         data: { name: newProjectName, description: newProjectDesc }
@@ -27,6 +32,7 @@ export function Sidebar() {
       setNewProjectName("");
       setNewProjectDesc("");
       setLocation(`/project/${newProj.id}`);
+      onClose?.();
     } catch (err) {
       console.error("Failed to create project", err);
     }
@@ -39,14 +45,15 @@ export function Sidebar() {
       await deleteMutation.mutateAsync({ id });
       if (location === `/project/${id}`) {
         setLocation("/");
+        onClose?.();
       }
     }
   };
 
-  return (
-    <div className="w-64 h-screen bg-card border-r border-border flex flex-col shadow-2xl z-20 shrink-0">
-      <div className="p-6 border-b border-border/50">
-        <Link href="/" className="flex items-center gap-3 group">
+  const sidebarContent = (
+    <div className="w-64 h-full bg-card border-r border-border flex flex-col shadow-2xl z-20 shrink-0">
+      <div className="p-6 border-b border-border/50 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-3 group" onClick={onClose}>
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/25 group-hover:scale-105 transition-transform duration-300">
             <Code2 className="w-5 h-5 text-white" />
           </div>
@@ -55,12 +62,20 @@ export function Sidebar() {
             <p className="text-xs text-muted-foreground font-medium">Workspace</p>
           </div>
         </Link>
+        {isMobileDrawer && (
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       <div className="p-4 flex-1 overflow-y-auto">
         <div className="flex items-center justify-between mb-4 px-2">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Your Projects</h2>
-          <button 
+          <button
             onClick={() => setIsCreating(!isCreating)}
             className="p-1.5 hover:bg-primary/10 hover:text-primary rounded-md transition-colors text-muted-foreground"
           >
@@ -70,7 +85,7 @@ export function Sidebar() {
 
         <AnimatePresence>
           {isCreating && (
-            <motion.form 
+            <motion.form
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
@@ -91,15 +106,15 @@ export function Sidebar() {
                 onChange={e => setNewProjectDesc(e.target.value)}
               />
               <div className="flex gap-2">
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={createMutation.isPending}
                   className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold py-2 rounded-lg transition-colors flex items-center justify-center"
                 >
                   {createMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Create"}
                 </button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setIsCreating(false)}
                   className="flex-1 bg-muted hover:bg-muted-foreground/20 text-foreground text-xs font-semibold py-2 rounded-lg transition-colors"
                 >
@@ -120,12 +135,13 @@ export function Sidebar() {
               const isActive = location === `/project/${project.id}`;
               return (
                 <li key={project.id}>
-                  <Link 
+                  <Link
                     href={`/project/${project.id}`}
+                    onClick={onClose}
                     className={`
                       group flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all duration-200
-                      ${isActive 
-                        ? 'bg-primary/10 text-primary font-medium' 
+                      ${isActive
+                        ? 'bg-primary/10 text-primary font-medium'
                         : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                       }
                     `}
@@ -139,7 +155,7 @@ export function Sidebar() {
                         )}
                       </div>
                     </div>
-                    <button 
+                    <button
                       onClick={(e) => handleDelete(e, project.id)}
                       disabled={deleteMutation.isPending}
                       className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-destructive/20 hover:text-destructive rounded-md transition-all shrink-0"
@@ -158,8 +174,7 @@ export function Sidebar() {
           </ul>
         )}
       </div>
-      
-      {/* User profile mock */}
+
       <div className="p-4 border-t border-border/50">
         <div className="flex items-center gap-3 px-2 py-2 hover:bg-muted/50 rounded-xl cursor-pointer transition-colors">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 shrink-0" />
@@ -171,4 +186,33 @@ export function Sidebar() {
       </div>
     </div>
   );
+
+  if (isMobileDrawer) {
+    return (
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 z-40 md:hidden"
+              onClick={onClose}
+            />
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed inset-y-0 left-0 z-50 md:hidden h-full"
+            >
+              {sidebarContent}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    );
+  }
+
+  return <div className="hidden md:flex h-screen shrink-0">{sidebarContent}</div>;
 }
