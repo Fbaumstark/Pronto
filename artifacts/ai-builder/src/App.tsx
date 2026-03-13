@@ -8,6 +8,7 @@ import { Workspace } from "./pages/Workspace";
 import { LoginPage } from "./pages/LoginPage";
 import { useAuth, AuthProvider } from "@workspace/replit-auth-web";
 import { Loader2 } from "lucide-react";
+import { HelpChatWidget } from "@/components/help/HelpChatWidget";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +57,7 @@ function App() {
               <Router />
             </AuthGate>
           </WouterRouter>
+          <HelpChatWidget />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>

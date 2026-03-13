@@ -7,11 +7,13 @@ import templatesRouter from "./templates";
 import versionsRouter from "./versions";
 import deploymentsRouter from "./deployments";
 import creditsRouter from "./credits";
+import helpRouter from "./help";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+router.use(helpRouter);
 router.use(templatesRouter);
 router.use(versionsRouter);
 router.use(deploymentsRouter);
