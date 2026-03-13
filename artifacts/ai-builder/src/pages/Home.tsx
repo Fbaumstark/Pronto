@@ -133,12 +133,12 @@ function CustomDomainModal({
       n: 2,
       title: 'Click "Add record" and fill in these values',
       detail: null,
-      record: { type: "CNAME", name: "www  (or @ for root)", target: cnameTarget, proxy: "DNS only (grey cloud)" },
+      record: { type: "CNAME", name: "www  (or @ for root)", target: cnameTarget, proxy: "Proxied (orange cloud) ✓" },
     },
     {
       n: 3,
-      title: "Set SSL mode to Full",
-      detail: 'Still in Cloudflare, go to SSL/TLS → Overview → choose "Full". This prevents redirect loops.',
+      title: 'Set SSL mode to "Flexible"',
+      detail: 'In Cloudflare, go to SSL/TLS → Overview → choose "Flexible". This is required because Replit\'s servers present a certificate for their own domain — "Full" or "Full (strict)" will cause an SSL error on your custom domain.',
     },
     {
       n: 4,
@@ -227,7 +227,7 @@ function CustomDomainModal({
             {guideOpen && (
               <div className="px-4 pb-4 pt-3 space-y-4">
                 <p className="text-xs text-muted-foreground">
-                  Cloudflare is free for DNS and gives you SSL automatically. If you use another registrar (GoDaddy, Namecheap, etc.) the steps are the same — just add a CNAME record.
+                  Cloudflare is free and handles your SSL automatically. Keep the proxy <span className="font-semibold text-foreground">enabled (orange cloud)</span> — that's what gives you HTTPS. Set SSL mode to <span className="font-semibold text-foreground">Flexible</span> so Cloudflare can reach Replit's servers without a cert mismatch.
                 </p>
 
                 {steps.map((step) => (
