@@ -33,7 +33,7 @@ const PRICING = [
   },
   {
     name: "Starter",
-    price: "$5",
+    price: "$9",
     period: "one-time",
     credits: "500,000",
     requests: "~100",
@@ -53,7 +53,7 @@ const PRICING = [
   },
   {
     name: "Pro",
-    price: "$15",
+    price: "$19",
     period: "one-time",
     credits: "2,000,000",
     requests: "~400",

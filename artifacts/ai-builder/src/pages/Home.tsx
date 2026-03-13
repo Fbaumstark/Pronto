@@ -258,8 +258,8 @@ export function Home() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
                   { label: "Free on signup", value: "50,000", sub: "≈ 10 generations", color: "text-green-400", bg: "bg-green-500/10 border-green-500/20" },
-                  { label: "Starter pack", value: "$5", sub: "500,000 credits · ≈ 100 generations", color: "text-primary", bg: "bg-primary/10 border-primary/20" },
-                  { label: "Pro pack", value: "$15", sub: "2,000,000 credits · ≈ 400 generations", color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20" },
+                  { label: "Starter pack", value: "$9", sub: "500,000 credits · ≈ 100 generations", color: "text-primary", bg: "bg-primary/10 border-primary/20" },
+                  { label: "Pro pack", value: "$19", sub: "2,000,000 credits · ≈ 400 generations", color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20" },
                 ].map(({ label, value, sub, color, bg }) => (
                   <div key={label} className={`rounded-xl p-3 border ${bg} text-center`}>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
