@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useListProjects, useCreateProject, useDeleteProject } from "@workspace/api-client-react";
-import { Plus, FolderGit2, Trash2, Loader2, X, Settings, LogOut, Coins, ChevronDown } from "lucide-react";
+import { Plus, FolderGit2, Trash2, Loader2, X, Settings, LogOut, Coins, ChevronDown, ShoppingCart, Zap } from "lucide-react";
 import { ProntoLogoMark } from "@/components/ProntoLogo";
 import { motion, AnimatePresence } from "framer-motion";
 import { SettingsModal } from "./SettingsModal";
@@ -22,7 +22,115 @@ interface Template {
   emoji: string;
 }
 
-function CreditsDisplay() {
+interface CreditProduct {
+  product_id: string;
+  product_name: string;
+  product_description: string;
+  product_metadata: Record<string, string>;
+  price_id: string;
+  unit_amount: number;
+  currency: string;
+}
+
+function BuyCreditsModal({ onClose }: { onClose: () => void }) {
+  const [products, setProducts] = useState<CreditProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/credits/products")
+      .then((r) => r.json())
+      .then((d) => { setProducts(d.data ?? []); setLoading(false); })
+      .catch(() => { setError("Failed to load credit packs"); setLoading(false); });
+  }, []);
+
+  const handleBuy = async (priceId: string) => {
+    setPurchasing(priceId);
+    setError(null);
+    try {
+      const res = await fetch("/api/credits/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priceId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to start checkout");
+      if (data.url) window.location.href = data.url;
+    } catch (err: any) {
+      setError(err.message);
+      setPurchasing(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl shadow-2xl p-6 w-80 max-w-full" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-bold text-foreground">Buy Credits</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {loading && (
+          <div className="flex justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        )}
+
+        {error && (
+          <div className="text-sm text-destructive text-center py-4">{error}</div>
+        )}
+
+        {!loading && !error && products.length === 0 && (
+          <div className="text-sm text-muted-foreground text-center py-4">
+            No credit packs available yet.
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {products.map((p) => {
+            const credits = parseInt(p.product_metadata?.credits ?? "0");
+            const price = p.unit_amount / 100;
+            const isPurchasing = purchasing === p.price_id;
+            return (
+              <div key={p.price_id} className="border border-border/60 rounded-xl p-4 hover:border-primary/50 hover:bg-primary/5 transition-all">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{p.product_name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{credits.toLocaleString()} AI credits</p>
+                  </div>
+                  <span className="text-lg font-bold text-primary">${price.toFixed(2)}</span>
+                </div>
+                <button
+                  onClick={() => handleBuy(p.price_id)}
+                  disabled={!!purchasing}
+                  className="w-full bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  {isPurchasing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <ShoppingCart className="w-4 h-4" />
+                      Buy Now
+                    </>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <p className="text-xs text-muted-foreground text-center mt-4">
+          Secure checkout powered by Stripe
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function CreditsDisplay({ onBuyCredits }: { onBuyCredits: () => void }) {
   const [data, setData] = useState<{ balance: number | null; unlimited: boolean } | null>(null);
 
   useEffect(() => {
@@ -67,6 +175,13 @@ function CreditsDisplay() {
       <div className="h-1.5 rounded-full bg-border overflow-hidden">
         <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
       </div>
+      <button
+        onClick={onBuyCredits}
+        className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors py-1"
+      >
+        <Zap className="w-3 h-3" />
+        Buy more credits
+      </button>
     </div>
   );
 }
@@ -80,6 +195,7 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDesc, setNewProjectDesc] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [showBuyCredits, setShowBuyCredits] = useState(false);
   const { user, logout } = useAuth() as any;
 
   const { data: projects, isLoading } = useListProjects();
@@ -272,7 +388,7 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
       </div>
 
       <div className="p-4 border-t border-border/50 space-y-2">
-        <CreditsDisplay />
+        <CreditsDisplay onBuyCredits={() => setShowBuyCredits(true)} />
 
         <button
           onClick={() => setShowSettings(true)}
@@ -312,6 +428,7 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
       </div>
 
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+      {showBuyCredits && <BuyCreditsModal onClose={() => setShowBuyCredits(false)} />}
     </div>
   );
 
