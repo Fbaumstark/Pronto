@@ -1,0 +1,23 @@
+packages:
+  "react-resizable-panels": "For split-pane IDE layouts"
+  "@uiw/react-codemirror": "For the code editor"
+  "@codemirror/lang-javascript": "Code editor language support"
+  "@codemirror/lang-html": "Code editor language support"
+  "@codemirror/lang-css": "Code editor language support"
+  "@uiw/codemirror-theme-vscode": "Dark theme for code editor"
+  "react-markdown": "For rendering AI chat messages"
+  "date-fns": "For formatting dates"
+  "framer-motion": "For page transitions and smooth modal animations"
+  "@tailwindcss/typography": "For styling markdown output in chat"
+
+images:
+  - path: "artifacts/ai-builder/public/images/hero-bg.png"
+    description: "Abstract dark mode gradient mesh background in deep navy blue, purple, and black with subtle glowing code-like geometric nodes"
+    aspect_ratio: "16:9"
+  - path: "artifacts/ai-builder/public/images/logo.png"
+    description: "Minimalist glowing geometric hexagon logo in neon blue on a transparent background, evoking artificial intelligence and coding"
+    aspect_ratio: "1:1"
+
+notes:
+  - Assumes customFetch is correctly exported by @workspace/api-client-react
+  - SSE is handled manually using fetch and ReadableStream due to standard hook limitations with streams

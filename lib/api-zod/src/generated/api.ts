@@ -14,3 +14,134 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * @summary List all projects
+ */
+export const ListProjectsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+export const ListProjectsResponse = zod.array(ListProjectsResponseItem);
+
+/**
+ * @summary Create a new project
+ */
+export const CreateProjectBody = zod.object({
+  name: zod.string(),
+  description: zod.string(),
+});
+
+/**
+ * @summary Get project with files and messages
+ */
+export const GetProjectParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetProjectResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+  files: zod.array(
+    zod.object({
+      id: zod.number(),
+      projectId: zod.number(),
+      filename: zod.string(),
+      content: zod.string(),
+      language: zod.string(),
+      createdAt: zod.date(),
+      updatedAt: zod.date(),
+    }),
+  ),
+  messages: zod.array(
+    zod.object({
+      id: zod.number(),
+      projectId: zod.number(),
+      role: zod.string(),
+      content: zod.string(),
+      createdAt: zod.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Delete a project
+ */
+export const DeleteProjectParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List files in a project
+ */
+export const ListProjectFilesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListProjectFilesResponseItem = zod.object({
+  id: zod.number(),
+  projectId: zod.number(),
+  filename: zod.string(),
+  content: zod.string(),
+  language: zod.string(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+export const ListProjectFilesResponse = zod.array(ListProjectFilesResponseItem);
+
+/**
+ * @summary List messages in a project
+ */
+export const ListProjectMessagesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListProjectMessagesResponseItem = zod.object({
+  id: zod.number(),
+  projectId: zod.number(),
+  role: zod.string(),
+  content: zod.string(),
+  createdAt: zod.date(),
+});
+export const ListProjectMessagesResponse = zod.array(
+  ListProjectMessagesResponseItem,
+);
+
+/**
+ * @summary Send a message and get AI response with file updates (SSE stream)
+ */
+export const SendProjectMessageParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SendProjectMessageBody = zod.object({
+  content: zod.string(),
+});
+
+/**
+ * @summary Update a file in a project
+ */
+export const UpdateProjectFileParams = zod.object({
+  projectId: zod.coerce.number(),
+  fileId: zod.coerce.number(),
+});
+
+export const UpdateProjectFileBody = zod.object({
+  content: zod.string(),
+});
+
+export const UpdateProjectFileResponse = zod.object({
+  id: zod.number(),
+  projectId: zod.number(),
+  filename: zod.string(),
+  content: zod.string(),
+  language: zod.string(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});

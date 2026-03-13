@@ -8,3 +8,56 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface Project {
+  id: number;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectFile {
+  id: number;
+  projectId: number;
+  filename: string;
+  content: string;
+  language: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatMessage {
+  id: number;
+  projectId: number;
+  role: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface ProjectDetail {
+  id: number;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  files: ProjectFile[];
+  messages: ChatMessage[];
+}
+
+export interface CreateProjectBody {
+  name: string;
+  description: string;
+}
+
+export interface SendMessageBody {
+  content: string;
+}
+
+export interface UpdateFileBody {
+  content: string;
+}
+
+export interface ApiError {
+  error: string;
+}

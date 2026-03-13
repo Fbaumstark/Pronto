@@ -1,0 +1,68 @@
+import { useParams } from "wouter";
+import { useGetProject } from "@workspace/api-client-react";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { ChatPanel } from "@/components/ide/ChatPanel";
+import { EditorPanel } from "@/components/ide/EditorPanel";
+import { PreviewPanel } from "@/components/ide/PreviewPanel";
+import { Loader2 } from "lucide-react";
+
+export function Workspace() {
+  const params = useParams();
+  const projectId = parseInt(params.id || "0", 10);
+  const { data: project, isLoading, error } = useGetProject(projectId);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background text-primary">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !project) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background text-destructive flex-col gap-4">
+        <p className="text-xl font-bold">Project not found</p>
+        <p className="text-muted-foreground">It may have been deleted or the URL is incorrect.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen w-full overflow-hidden bg-background">
+      <Sidebar />
+      
+      <div className="flex-1 overflow-hidden">
+        {/* React Resizable Panels provides the split layout */}
+        <PanelGroup direction="horizontal">
+          {/* Chat Panel - Left side */}
+          <Panel defaultSize={35} minSize={25} className="z-10">
+            <ChatPanel projectId={project.id} />
+          </Panel>
+          
+          <PanelResizeHandle className="w-1.5 bg-border hover:bg-primary/50 transition-colors cursor-col-resize z-20 flex items-center justify-center">
+            <div className="h-8 w-0.5 bg-muted-foreground/30 rounded-full" />
+          </PanelResizeHandle>
+          
+          {/* IDE Panels - Right side */}
+          <Panel defaultSize={65} minSize={30}>
+            <PanelGroup direction="vertical">
+              <Panel defaultSize={50} minSize={20}>
+                <EditorPanel projectId={project.id} />
+              </Panel>
+              
+              <PanelResizeHandle className="h-1.5 bg-border hover:bg-primary/50 transition-colors cursor-row-resize z-20 flex items-center justify-center">
+                <div className="w-8 h-0.5 bg-muted-foreground/30 rounded-full" />
+              </PanelResizeHandle>
+              
+              <Panel defaultSize={50} minSize={20}>
+                <PreviewPanel projectId={project.id} />
+              </Panel>
+            </PanelGroup>
+          </Panel>
+        </PanelGroup>
+      </div>
+    </div>
+  );
+}
