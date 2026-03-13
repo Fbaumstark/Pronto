@@ -13,13 +13,13 @@ import {
   getSessionId,
   createSession,
   deleteSession,
+  storeOidcState,
+  getOidcState,
   SESSION_COOKIE,
   SESSION_TTL,
   ISSUER_URL,
   type SessionData,
 } from "../lib/auth";
-
-const OIDC_COOKIE_TTL = 10 * 60 * 1000;
 
 const router: IRouter = Router();
 
@@ -37,16 +37,6 @@ function setSessionCookie(res: Response, sid: string) {
     sameSite: "lax",
     path: "/",
     maxAge: SESSION_TTL,
-  });
-}
-
-function setOidcCookie(res: Response, name: string, value: string) {
-  res.cookie(name, value, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: OIDC_COOKIE_TTL,
   });
 }
 
@@ -101,6 +91,13 @@ router.get("/login", async (req: Request, res: Response) => {
   const codeVerifier = oidc.randomPKCECodeVerifier();
   const codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
 
+  storeOidcState(state, {
+    codeVerifier,
+    nonce,
+    returnTo,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  });
+
   const redirectTo = oidc.buildAuthorizationUrl(config, {
     redirect_uri: callbackUrl,
     scope: "openid email profile offline_access",
@@ -111,11 +108,6 @@ router.get("/login", async (req: Request, res: Response) => {
     nonce,
   });
 
-  setOidcCookie(res, "code_verifier", codeVerifier);
-  setOidcCookie(res, "nonce", nonce);
-  setOidcCookie(res, "state", state);
-  setOidcCookie(res, "return_to", returnTo);
-
   res.redirect(redirectTo.href);
 });
 
@@ -125,14 +117,19 @@ router.get("/callback", async (req: Request, res: Response) => {
   const config = await getOidcConfig();
   const callbackUrl = `${getOrigin(req)}/api/callback`;
 
-  const codeVerifier = req.cookies?.code_verifier;
-  const nonce = req.cookies?.nonce;
-  const expectedState = req.cookies?.state;
-
-  if (!codeVerifier || !expectedState) {
+  const stateParam = req.query.state as string | undefined;
+  if (!stateParam) {
     res.redirect("/api/login");
     return;
   }
+
+  const oidcStateData = getOidcState(stateParam);
+  if (!oidcStateData) {
+    res.redirect("/api/login");
+    return;
+  }
+
+  const { codeVerifier, nonce, returnTo } = oidcStateData;
 
   const currentUrl = new URL(
     `${callbackUrl}?${new URL(req.url, `http://${req.headers.host}`).searchParams}`,
@@ -143,20 +140,13 @@ router.get("/callback", async (req: Request, res: Response) => {
     tokens = await oidc.authorizationCodeGrant(config, currentUrl, {
       pkceCodeVerifier: codeVerifier,
       expectedNonce: nonce,
-      expectedState,
+      expectedState: stateParam,
       idTokenExpected: true,
     });
   } catch {
     res.redirect("/api/login");
     return;
   }
-
-  const returnTo = getSafeReturnTo(req.cookies?.return_to);
-
-  res.clearCookie("code_verifier", { path: "/" });
-  res.clearCookie("nonce", { path: "/" });
-  res.clearCookie("state", { path: "/" });
-  res.clearCookie("return_to", { path: "/" });
 
   const claims = tokens.claims();
   if (!claims) {

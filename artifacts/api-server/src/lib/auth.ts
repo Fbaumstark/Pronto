@@ -9,6 +9,31 @@ export const ISSUER_URL = process.env.ISSUER_URL ?? "https://replit.com/oidc";
 export const SESSION_COOKIE = "sid";
 export const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
 
+interface OidcState {
+  codeVerifier: string;
+  nonce: string;
+  returnTo: string;
+  expiresAt: number;
+}
+
+const oidcStateStore = new Map<string, OidcState>();
+
+export function storeOidcState(state: string, data: OidcState): void {
+  oidcStateStore.set(state, data);
+  setTimeout(() => oidcStateStore.delete(state), 10 * 60 * 1000);
+}
+
+export function getOidcState(state: string): OidcState | undefined {
+  const data = oidcStateStore.get(state);
+  if (!data) return undefined;
+  if (Date.now() > data.expiresAt) {
+    oidcStateStore.delete(state);
+    return undefined;
+  }
+  oidcStateStore.delete(state);
+  return data;
+}
+
 export interface SessionData {
   user: AuthUser;
   access_token: string;
