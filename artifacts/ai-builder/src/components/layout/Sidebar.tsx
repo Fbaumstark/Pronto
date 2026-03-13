@@ -61,7 +61,7 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDesc, setNewProjectDesc] = useState("");
   const [showSettings, setShowSettings] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout } = useAuth() as any;
 
   const { data: projects, isLoading } = useListProjects();
   const createMutation = useCreateProject();
