@@ -30,7 +30,8 @@ artifacts-monorepo/
 │   ├── api-client-react/   # Generated React Query hooks
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   ├── db/                 # Drizzle ORM schema + DB connection
-│   └── integrations-anthropic-ai/  # Anthropic AI client
+│   ├── integrations-anthropic-ai/  # Anthropic AI client
+│   └── replit-auth-web/    # useAuth() hook for browser auth state
 ├── scripts/
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json
@@ -40,7 +41,8 @@ artifacts-monorepo/
 
 ## Features
 
-- **Projects**: Create and manage multiple app-building projects
+- **User accounts**: Replit Auth (OIDC/PKCE) — login page, session management, logout
+- **Projects**: Create and manage multiple app-building projects (per user in future)
 - **Chat interface**: Describe what to build in natural language
 - **AI code generation**: Claude generates complete, working HTML/CSS/JS code
 - **File tree**: View and manage generated files per project
@@ -48,12 +50,16 @@ artifacts-monorepo/
 - **Streaming**: Real-time streaming of Claude's response as it writes code
 - **Code editor**: CodeMirror syntax-highlighted code viewer
 - **Responsive preview**: Desktop, tablet, and mobile preview modes
+- **AI Provider toggle**: Switch between Replit AI Integration and own Anthropic API key
 
 ## Database Schema
 
 - `projects` — project name, description, timestamps
 - `project_files` — files per project (filename, content, language)
 - `project_messages` — chat history per project (role, content)
+- `app_settings` — AI provider setting + optional own Anthropic API key
+- `users` — Replit Auth user records (id, email, firstName, lastName, profileImageUrl)
+- `sessions` — server-side session storage for auth
 
 ## Key API Endpoints
 

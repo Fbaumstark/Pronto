@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useListProjects, useCreateProject, useDeleteProject } from "@workspace/api-client-react";
-import { Plus, FolderGit2, Trash2, Code2, Loader2, X, Settings } from "lucide-react";
+import { Plus, FolderGit2, Trash2, Code2, Loader2, X, Settings, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
 import { SettingsModal } from "./SettingsModal";
+import { useAuth } from "@workspace/replit-auth-web";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -18,6 +19,7 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDesc, setNewProjectDesc] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const { user, logout } = useAuth();
 
   const { data: projects, isLoading } = useListProjects();
   const createMutation = useCreateProject();
@@ -190,6 +192,29 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
             <p className="text-xs text-muted-foreground truncate">Configure API settings</p>
           </div>
         </button>
+
+        <div className="flex items-center gap-3 px-2 py-2 rounded-xl">
+          {user?.profileImageUrl ? (
+            <img src={user.profileImageUrl} alt="avatar" className="w-8 h-8 rounded-full shrink-0 object-cover" />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 shrink-0 flex items-center justify-center text-white text-xs font-bold">
+              {(user?.firstName?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">
+              {user?.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user?.email ?? "User"}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">{user?.email ?? ""}</p>
+          </div>
+          <button
+            onClick={logout}
+            title="Log out"
+            className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />

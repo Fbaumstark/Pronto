@@ -5,6 +5,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { Home } from "./pages/Home";
 import { Workspace } from "./pages/Workspace";
+import { LoginPage } from "./pages/LoginPage";
+import { useAuth } from "@workspace/replit-auth-web";
+import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,12 +28,32 @@ function Router() {
   );
 }
 
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { isLoading, isAuthenticated } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
+          <AuthGate>
+            <Router />
+          </AuthGate>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
