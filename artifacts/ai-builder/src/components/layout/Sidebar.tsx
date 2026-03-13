@@ -23,17 +23,35 @@ interface Template {
 }
 
 function CreditsDisplay() {
-  const [balance, setBalance] = useState<number | null>(null);
+  const [data, setData] = useState<{ balance: number | null; unlimited: boolean } | null>(null);
 
   useEffect(() => {
     fetch("/api/credits")
       .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d) setBalance(d.balance); })
+      .then((d) => { if (d) setData(d); })
       .catch(() => {});
   }, []);
 
-  if (balance === null) return null;
+  if (data === null) return null;
 
+  if (data.unlimited) {
+    return (
+      <div className="px-2 py-2 border border-border/40 rounded-xl bg-muted/30 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Coins className="w-3.5 h-3.5" />
+            <span>Credits</span>
+          </div>
+          <span className="text-xs font-semibold text-primary">Unlimited</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-border overflow-hidden">
+          <div className="h-full bg-primary rounded-full w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  const balance = data.balance ?? 0;
   const pct = Math.min(100, (balance / 50000) * 100);
   const color = pct > 50 ? "bg-green-500" : pct > 20 ? "bg-yellow-500" : "bg-red-500";
 

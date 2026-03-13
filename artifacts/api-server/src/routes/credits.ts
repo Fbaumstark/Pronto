@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, sum } from "drizzle-orm";
 import { db, creditLedgerTable } from "@workspace/db";
+import { isUnlimitedUser } from "../lib/admin";
 
 const router: IRouter = Router();
 
@@ -17,8 +18,14 @@ router.get("/credits", async (req, res) => {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
+
+  if (isUnlimitedUser(req.user.email)) {
+    res.json({ balance: null, unlimited: true });
+    return;
+  }
+
   const balance = await getUserBalance(req.user.id);
-  res.json({ balance });
+  res.json({ balance, unlimited: false });
 });
 
 router.get("/credits/history", async (req, res) => {

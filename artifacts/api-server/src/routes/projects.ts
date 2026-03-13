@@ -15,6 +15,7 @@ import {
   UpdateProjectFileBody,
 } from "@workspace/api-zod";
 import { getAIClient } from "../lib/ai-client";
+import { isUnlimitedUser } from "../lib/admin";
 
 const FREE_CREDITS = 50000;
 const CREDITS_PER_REQUEST = 5000;
@@ -177,7 +178,10 @@ router.post("/projects/:id/messages", async (req, res) => {
   }
 
   const userId = req.isAuthenticated() ? req.user.id : null;
-  if (userId) {
+  const userEmail = req.isAuthenticated() ? req.user.email : null;
+  const unlimited = isUnlimitedUser(userEmail);
+
+  if (userId && !unlimited) {
     await ensureFreeCredits(userId);
     const balance = await getUserBalance(userId);
     if (balance < CREDITS_PER_REQUEST) {
@@ -336,7 +340,7 @@ Rules:
 
     await saveVersion(projectId);
 
-    if (userId) {
+    if (userId && !unlimited) {
       await db.insert(creditLedgerTable).values({
         userId,
         amount: -CREDITS_PER_REQUEST,
@@ -345,8 +349,8 @@ Rules:
       });
     }
 
-    const newBalance = userId ? await getUserBalance(userId) : null;
-    res.write(`data: ${JSON.stringify({ type: "done", creditsRemaining: newBalance })}\n\n`);
+    const newBalance = unlimited ? null : (userId ? await getUserBalance(userId) : null);
+    res.write(`data: ${JSON.stringify({ type: "done", creditsRemaining: newBalance, unlimited })}\n\n`);
     res.end();
   } catch (err) {
     console.error("Streaming error:", err);
