@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useListProjectFiles, useUpdateProjectFile } from "@workspace/api-client-react";
-import { FileCode2, FileJson, FileText, File, Save, ChevronDown } from "lucide-react";
+import { FileCode2, FileJson, FileText, File, CheckCircle2, Loader2, ChevronDown } from "lucide-react";
 import CodeMirror from '@uiw/react-codemirror';
 import { vscodeDark } from '@uiw/codemirror-theme-vscode';
 import { javascript } from '@codemirror/lang-javascript';
@@ -9,13 +9,16 @@ import { css } from '@codemirror/lang-css';
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+type SaveStatus = "saved" | "saving" | "unsaved";
+
 export function EditorPanel({ projectId }: { projectId: number }) {
   const { data: files } = useListProjectFiles(projectId);
   const updateMutation = useUpdateProjectFile();
   const [activeFileId, setActiveFileId] = useState<number | null>(null);
   const [localCode, setLocalCode] = useState("");
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [showFileList, setShowFileList] = useState(false);
-  const debouncedCode = useDebounce(localCode, 1500);
+  const debouncedCode = useDebounce(localCode, 1200);
   const isMobile = useIsMobile();
 
   const activeFile = files?.find(f => f.id === activeFileId) || files?.[0];
@@ -23,19 +26,25 @@ export function EditorPanel({ projectId }: { projectId: number }) {
   useEffect(() => {
     if (activeFile) {
       setLocalCode(activeFile.content);
+      setSaveStatus("saved");
       if (!activeFileId) setActiveFileId(activeFile.id);
     }
-  }, [activeFile?.id, activeFile?.content]);
+  }, [activeFile?.id]);
 
   useEffect(() => {
-    if (activeFileId && activeFile && debouncedCode !== activeFile.content) {
-      updateMutation.mutate({
-        projectId,
-        fileId: activeFileId,
-        data: { content: debouncedCode }
-      });
+    if (activeFile && debouncedCode !== activeFile.content && activeFileId) {
+      setSaveStatus("saving");
+      updateMutation.mutate(
+        { projectId, fileId: activeFileId, data: { content: debouncedCode } },
+        { onSuccess: () => setSaveStatus("saved"), onError: () => setSaveStatus("unsaved") }
+      );
     }
   }, [debouncedCode]);
+
+  const handleCodeChange = (val: string) => {
+    setLocalCode(val);
+    setSaveStatus("unsaved");
+  };
 
   const getLanguageExtension = (filename: string) => {
     if (filename.endsWith('.js') || filename.endsWith('.ts') || filename.endsWith('.tsx')) return javascript({ jsx: true, typescript: true });
@@ -52,20 +61,62 @@ export function EditorPanel({ projectId }: { projectId: number }) {
     return <FileText className="w-4 h-4 text-muted-foreground" />;
   };
 
+  const SaveIndicator = () => {
+    if (saveStatus === "saving") return (
+      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+        <Loader2 className="w-3 h-3 animate-spin" /> Saving…
+      </span>
+    );
+    if (saveStatus === "saved") return (
+      <span className="flex items-center gap-1 text-[10px] text-green-500">
+        <CheckCircle2 className="w-3 h-3" /> Saved
+      </span>
+    );
+    return (
+      <span className="flex items-center gap-1 text-[10px] text-yellow-500">
+        Unsaved changes
+      </span>
+    );
+  };
+
+  const editorNode = activeFile ? (
+    <CodeMirror
+      value={localCode}
+      height="100%"
+      theme={vscodeDark}
+      extensions={[getLanguageExtension(activeFile.filename)]}
+      onChange={handleCodeChange}
+      className="h-full text-[13px] font-mono leading-relaxed"
+      basicSetup={{
+        lineNumbers: true,
+        highlightActiveLineGutter: true,
+        foldGutter: true,
+        dropCursor: true,
+        allowMultipleSelections: true,
+        indentOnInput: true,
+      }}
+    />
+  ) : (
+    <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-4 bg-background">
+      <File className="w-10 h-10 opacity-20" />
+      <p className="text-sm">No files yet. Start chatting to generate code.</p>
+    </div>
+  );
+
   if (isMobile) {
     return (
       <div className="flex flex-col h-full bg-background overflow-hidden">
         <div className="h-10 bg-card border-b border-border flex items-center shrink-0 px-2 relative">
           <button
             onClick={() => setShowFileList(prev => !prev)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-muted transition-colors text-sm text-foreground w-full"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-muted transition-colors text-sm text-foreground flex-1 min-w-0"
           >
             {activeFile && getFileIcon(activeFile.filename)}
             <span className="flex-1 text-left font-medium text-sm truncate">
               {activeFile?.filename ?? "No file selected"}
             </span>
-            {updateMutation.isPending && <Save className="w-3 h-3 text-muted-foreground animate-pulse" />}
-            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showFileList ? "rotate-180" : ""}`} />
+            <SaveIndicator />
+            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ml-1 shrink-0 ${showFileList ? "rotate-180" : ""}`} />
           </button>
 
           {showFileList && (
@@ -73,7 +124,7 @@ export function EditorPanel({ projectId }: { projectId: number }) {
               {files?.map(file => (
                 <button
                   key={file.id}
-                  onClick={() => { setActiveFileId(file.id); setShowFileList(false); }}
+                  onClick={() => { setActiveFileId(file.id); setLocalCode(file.content); setSaveStatus("saved"); setShowFileList(false); }}
                   className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
                     activeFile?.id === file.id
                       ? 'bg-primary/20 text-primary font-medium'
@@ -89,29 +140,7 @@ export function EditorPanel({ projectId }: { projectId: number }) {
         </div>
 
         <div className="flex-1 overflow-auto bg-[#1e1e1e]">
-          {activeFile ? (
-            <CodeMirror
-              value={localCode}
-              height="100%"
-              theme={vscodeDark}
-              extensions={[getLanguageExtension(activeFile.filename)]}
-              onChange={(val) => setLocalCode(val)}
-              className="h-full text-[13px] font-mono"
-              basicSetup={{
-                lineNumbers: true,
-                highlightActiveLineGutter: true,
-                foldGutter: true,
-                dropCursor: true,
-                allowMultipleSelections: true,
-                indentOnInput: true,
-              }}
-            />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-4">
-              <File className="w-10 h-10 opacity-20" />
-              <p className="text-sm">No files yet. Start chatting to generate code.</p>
-            </div>
-          )}
+          {editorNode}
         </div>
       </div>
     );
@@ -127,7 +156,7 @@ export function EditorPanel({ projectId }: { projectId: number }) {
           {files?.map(file => (
             <button
               key={file.id}
-              onClick={() => setActiveFileId(file.id)}
+              onClick={() => { setActiveFileId(file.id); setLocalCode(file.content); setSaveStatus("saved"); }}
               className={`w-full flex items-center gap-2 px-4 py-1.5 text-sm transition-colors ${
                 activeFile?.id === file.id
                   ? 'bg-primary/20 text-primary border-r-2 border-primary font-medium'
@@ -144,30 +173,15 @@ export function EditorPanel({ projectId }: { projectId: number }) {
       <div className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e]">
         {activeFile ? (
           <>
-            <div className="h-10 bg-card border-b border-border flex items-center px-2 shrink-0">
-              <div className="flex items-center gap-2 px-4 py-1.5 bg-[#1e1e1e] border-t-2 border-primary text-foreground text-sm rounded-t-md">
+            <div className="h-10 bg-card border-b border-border flex items-center justify-between px-4 shrink-0">
+              <div className="flex items-center gap-2 text-foreground text-sm">
                 {getFileIcon(activeFile.filename)}
-                {activeFile.filename}
-                {updateMutation.isPending && <Save className="w-3 h-3 text-muted-foreground animate-pulse ml-2" />}
+                <span>{activeFile.filename}</span>
               </div>
+              <SaveIndicator />
             </div>
             <div className="flex-1 overflow-auto">
-              <CodeMirror
-                value={localCode}
-                height="100%"
-                theme={vscodeDark}
-                extensions={[getLanguageExtension(activeFile.filename)]}
-                onChange={(val) => setLocalCode(val)}
-                className="h-full text-[13px] font-mono leading-relaxed"
-                basicSetup={{
-                  lineNumbers: true,
-                  highlightActiveLineGutter: true,
-                  foldGutter: true,
-                  dropCursor: true,
-                  allowMultipleSelections: true,
-                  indentOnInput: true,
-                }}
-              />
+              {editorNode}
             </div>
           </>
         ) : (

@@ -48,10 +48,16 @@ export function Workspace() {
           isMobileDrawer
         />
 
-        <div className="flex-1 overflow-hidden">
-          {activeTab === "chat" && <ChatPanel projectId={project.id} />}
-          {activeTab === "code" && <EditorPanel projectId={project.id} />}
-          {activeTab === "preview" && <PreviewPanel projectId={project.id} />}
+        <div className="flex-1 overflow-hidden relative">
+          <div className={`absolute inset-0 ${activeTab === "chat" ? "flex flex-col" : "hidden"}`}>
+            <ChatPanel projectId={project.id} />
+          </div>
+          <div className={`absolute inset-0 ${activeTab === "code" ? "flex flex-col" : "hidden"}`}>
+            <EditorPanel projectId={project.id} />
+          </div>
+          <div className={`absolute inset-0 ${activeTab === "preview" ? "flex flex-col" : "hidden"}`}>
+            <PreviewPanel projectId={project.id} />
+          </div>
         </div>
 
         <div className="h-16 border-t border-border bg-card flex items-center shrink-0 z-30">
