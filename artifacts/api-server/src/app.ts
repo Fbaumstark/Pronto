@@ -50,4 +50,16 @@ app.use(authMiddleware);
 
 app.use("/api", router);
 
+// Serve the built React frontend in production
+if (process.env.NODE_ENV === "production") {
+  // In production the built frontend is at artifacts/ai-builder/dist/public
+  // relative to the workspace root (two directories up from api-server/src)
+  const frontendDist = path.resolve(__dirname, "../../ai-builder/dist/public");
+  app.use(express.static(frontendDist));
+  // SPA fallback — any non-API route returns index.html
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
+
 export default app;
