@@ -23,7 +23,7 @@ const PRICING = [
     ctaStyle: "bg-muted hover:bg-muted/80 text-foreground",
     noCard: true,
     features: [
-      "50,000 AI credits included",
+      "50,000 AI credits on signup",
       "Unlimited projects",
       "Live preview sandbox",
       "6 starter templates",
@@ -32,43 +32,43 @@ const PRICING = [
     ],
   },
   {
-    name: "Starter",
-    price: "$9",
-    period: "one-time",
+    name: "Monthly Plan",
+    price: "$10",
+    period: "/ month",
     credits: "500,000",
     requests: "~100",
     badge: "Most popular",
     color: "border-primary",
     headerBg: "bg-primary/10",
-    cta: "Get Starter credits",
+    cta: "Start Monthly Plan",
     ctaStyle: "bg-primary hover:bg-primary/90 text-primary-foreground",
     noCard: false,
     features: [
-      "500,000 AI credits",
-      "No subscription ever",
-      "Credits never expire",
+      "500,000 AI credits / month",
+      "Auto-renews every month",
+      "Card billed automatically",
       "Everything in Free",
       "Priority support",
     ],
   },
   {
-    name: "Pro",
-    price: "$19",
-    period: "one-time",
-    credits: "2,000,000",
-    requests: "~400",
-    badge: "Best value",
+    name: "Auto Top-up",
+    price: "$25",
+    period: "per refill",
+    credits: "1,250,000",
+    requests: "~250",
+    badge: "Pay as you go",
     color: "border-violet-500/50",
     headerBg: "bg-violet-500/10",
-    cta: "Get Pro credits",
-    ctaStyle: "bg-violet-600 hover:bg-violet-700 text-white",
+    cta: "Included with Monthly",
+    ctaStyle: "bg-violet-600/50 cursor-default text-white",
     noCard: false,
     features: [
-      "2,000,000 AI credits",
-      "No subscription ever",
-      "Credits never expire",
-      "Everything in Free",
-      "Priority support",
+      "1,250,000 credits per top-up",
+      "Triggers automatically at $0",
+      "Billed in $25 increments",
+      "Charged to card on file",
+      "Never interrupted mid-project",
     ],
   },
 ];
@@ -204,7 +204,7 @@ export function LoginPage() {
           <div className="space-y-6">
             <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 text-sm text-primary font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              No subscription. No monthly fees.
+              50,000 free credits. No card required.
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-display font-bold tracking-tight leading-[1.05]">
               <span className="text-foreground">Build apps with</span>
@@ -286,9 +286,10 @@ export function LoginPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-4">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">Pricing</p>
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground">Pay once. Build forever.</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground">Simple, usage-based billing.</h2>
             <p className="text-muted-foreground mt-3 max-w-xl mx-auto">
-              No subscriptions. No monthly fees. Buy credits when you need them — they never expire.
+              $10/month minimum keeps your account active. When credits run out, we automatically
+              top up in $25 increments — so you're never interrupted mid-build.
             </p>
           </div>
 
@@ -349,23 +350,27 @@ export function LoginPage() {
             ))}
           </div>
 
-          {/* How credits work */}
+          {/* How billing works */}
           <div className="mt-10 bg-muted/30 border border-border/50 rounded-2xl p-6">
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <Zap className="w-4 h-4 text-primary" /> How credits work
+              <Zap className="w-4 h-4 text-primary" /> How billing works
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-muted-foreground">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-sm text-muted-foreground">
               <div className="flex gap-3">
                 <span className="text-xl shrink-0">1️⃣</span>
-                <div><p className="font-medium text-foreground mb-0.5">Sign up free</p><p>Get 50,000 credits instantly. No credit card, no commitment.</p></div>
+                <div><p className="font-medium text-foreground mb-0.5">Sign up free</p><p>Get 50,000 credits instantly. No card required to start.</p></div>
               </div>
               <div className="flex gap-3">
                 <span className="text-xl shrink-0">2️⃣</span>
-                <div><p className="font-medium text-foreground mb-0.5">Build your app</p><p>Each AI generation uses ~5,000 credits. Your free credits cover ~10 full generations.</p></div>
+                <div><p className="font-medium text-foreground mb-0.5">Subscribe for $10/mo</p><p>Adds 500,000 credits each month. Your card is saved securely for auto-billing.</p></div>
               </div>
               <div className="flex gap-3">
                 <span className="text-xl shrink-0">3️⃣</span>
-                <div><p className="font-medium text-foreground mb-0.5">Top up anytime</p><p>When credits run low, buy a pack in-app via Stripe. Secure, instant, one-time charge.</p></div>
+                <div><p className="font-medium text-foreground mb-0.5">Build without limits</p><p>Each AI generation uses ~5,000 credits (~100 generations/month on base plan).</p></div>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-xl shrink-0">4️⃣</span>
+                <div><p className="font-medium text-foreground mb-0.5">Auto top-up at $0</p><p>Credits hit zero? We automatically charge $25 and add 1,250,000 more — no interruption.</p></div>
               </div>
             </div>
           </div>

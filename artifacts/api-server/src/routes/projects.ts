@@ -8,6 +8,7 @@ import {
   projectVersionsTable,
   creditLedgerTable,
   templatesTable,
+  usersTable,
 } from "@workspace/db";
 import {
   CreateProjectBody,
@@ -16,7 +17,7 @@ import {
 } from "@workspace/api-zod";
 import { getAIClient } from "../lib/ai-client";
 import { isUnlimitedUser } from "../lib/admin";
-import { ensureFreeCredits } from "./credits";
+import { ensureFreeCredits, triggerAutoTopup } from "./credits";
 
 const CREDITS_PER_REQUEST = 5000;
 
@@ -338,6 +339,16 @@ CRITICAL RULES:
         userId, amount: -CREDITS_PER_REQUEST, type: "ai_generation",
         description: `AI generation for project ${projectId}`,
       });
+
+      const postBalance = await getUserBalance(userId);
+      if (postBalance <= 0) {
+        const [userRow] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+        if (userRow?.stripeCustomerId) {
+          triggerAutoTopup(userId, userRow.stripeCustomerId).catch((e) =>
+            console.error("Auto top-up error:", e)
+          );
+        }
+      }
     }
 
     const newBalance = unlimited ? null : (userId ? await getUserBalance(userId) : null);

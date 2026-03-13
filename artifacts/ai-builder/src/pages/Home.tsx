@@ -257,9 +257,9 @@ export function Home() {
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
-                  { label: "Free on signup", value: "50,000", sub: "≈ 10 generations", color: "text-green-400", bg: "bg-green-500/10 border-green-500/20" },
-                  { label: "Starter pack", value: "$9", sub: "500,000 credits · ≈ 100 generations", color: "text-primary", bg: "bg-primary/10 border-primary/20" },
-                  { label: "Pro pack", value: "$19", sub: "2,000,000 credits · ≈ 400 generations", color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20" },
+                  { label: "Free on signup", value: "50,000", sub: "≈ 10 generations · no card needed", color: "text-green-400", bg: "bg-green-500/10 border-green-500/20" },
+                  { label: "Monthly Plan", value: "$10/mo", sub: "500,000 credits · auto-renews monthly", color: "text-primary", bg: "bg-primary/10 border-primary/20" },
+                  { label: "Auto Top-up", value: "$25", sub: "1,250,000 credits · triggers when balance hits $0", color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20" },
                 ].map(({ label, value, sub, color, bg }) => (
                   <div key={label} className={`rounded-xl p-3 border ${bg} text-center`}>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
@@ -270,7 +270,7 @@ export function Home() {
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2 border border-border/40">
                 <CreditCard className="w-3.5 h-3.5 shrink-0 text-primary" />
-                To buy more credits, click <strong className="text-foreground mx-1">Buy Credits</strong> in the sidebar. Secure checkout via Stripe — one-time charge, no subscription.
+                To subscribe, click <strong className="text-foreground mx-1">Buy Credits</strong> in the sidebar. When your balance hits zero, $25 is charged automatically — no interruption to your build.
               </div>
             </section>
 

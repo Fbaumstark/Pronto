@@ -1,5 +1,15 @@
 import { getStripeSync, hasStripeSync, getUncachableStripeClient } from "./lib/stripeClient";
-import { db, creditLedgerTable } from "@workspace/db";
+import { db, creditLedgerTable, usersTable } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
+import { grantSubscriptionCredits, grantTopupCredits } from "./routes/credits";
+
+async function getUserIdForCustomer(customerId: string): Promise<string | null> {
+  const [user] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.stripeCustomerId, customerId));
+  return user?.id ?? null;
+}
 
 async function addCreditsForCheckout(sessionId: string) {
   try {
@@ -9,6 +19,12 @@ async function addCreditsForCheckout(sessionId: string) {
     const userId = session.metadata?.userId;
     if (!userId) {
       console.warn("No userId in checkout session metadata:", sessionId);
+      return;
+    }
+
+    // Subscription checkout — first invoice handled by invoice.payment_succeeded
+    if (session.mode === "subscription") {
+      console.log("Subscription checkout completed — credits will be granted via invoice webhook");
       return;
     }
 
@@ -58,6 +74,8 @@ export class WebhookHandlers {
 
     let sessionId: string | null = null;
     let isCheckoutCompleted = false;
+    let invoiceEvent: any = null;
+    let topupPaymentIntent: any = null;
 
     try {
       const secretResult = await sync.postgresClient.query(
@@ -67,11 +85,28 @@ export class WebhookHandlers {
       if (secret) {
         const stripeClient = await getUncachableStripeClient();
         const event = await stripeClient.webhooks?.constructEventAsync(payload, signature, secret);
+
         if (event?.type === "checkout.session.completed") {
           const session = event.data.object as any;
-          if (session.payment_status === "paid") {
+          if (session.payment_status === "paid" || session.mode === "subscription") {
             sessionId = session.id;
             isCheckoutCompleted = true;
+          }
+        }
+
+        // Subscription renewal — grant monthly credits
+        if (event?.type === "invoice.payment_succeeded") {
+          const invoice = event.data.object as any;
+          if (invoice.billing_reason === "subscription_cycle" || invoice.billing_reason === "subscription_create") {
+            invoiceEvent = invoice;
+          }
+        }
+
+        // Auto top-up payment succeeded
+        if (event?.type === "payment_intent.succeeded") {
+          const pi = event.data.object as any;
+          if (pi.metadata?.type === "auto_topup") {
+            topupPaymentIntent = pi;
           }
         }
       }
@@ -83,6 +118,27 @@ export class WebhookHandlers {
 
     if (isCheckoutCompleted && sessionId) {
       await addCreditsForCheckout(sessionId);
+    }
+
+    if (invoiceEvent) {
+      const customerId = invoiceEvent.customer;
+      let userId = invoiceEvent.subscription_details?.metadata?.userId
+        ?? invoiceEvent.metadata?.userId;
+      if (!userId && customerId) {
+        userId = await getUserIdForCustomer(customerId);
+      }
+      if (userId) {
+        await grantSubscriptionCredits(userId, invoiceEvent.id);
+      } else {
+        console.warn("Could not find userId for subscription invoice:", invoiceEvent.id);
+      }
+    }
+
+    if (topupPaymentIntent) {
+      const userId = topupPaymentIntent.metadata?.userId;
+      if (userId) {
+        await grantTopupCredits(userId, topupPaymentIntent.id);
+      }
     }
   }
 }

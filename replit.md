@@ -55,7 +55,8 @@ artifacts-monorepo/
 - **Version History**: Auto-snapshot saved after every AI generation; restore any prior version
 - **Deployment**: One-click publish to stable public URL (`/api/published/:slug`); take offline anytime
 - **Custom Domains**: Attach a custom domain to a deployed project (CNAME-based)
-- **Credits system**: 50,000 free credits on signup; 5,000 deducted per AI request; balance shown in sidebar
+- **Credits system**: 50,000 free credits on signup; 5,000 deducted per AI request; balance shown in sidebar; $10/month subscription (500k credits); $25 auto top-up (1.25M credits) when balance hits 0
+- **Stripe billing**: Monthly subscription via Stripe Checkout; off-session auto top-up via PaymentIntents; webhook handlers for `invoice.paid` and `payment_intent.succeeded`
 
 ## Database Schema
 
@@ -90,9 +91,12 @@ All routes prefixed with `/api`:
 - `POST /projects/:id/deploy` — deploy/redeploy project
 - `POST /projects/:id/undeploy` — take project offline
 - `PUT /projects/:id/deployment/domain` — set custom domain
-- `GET /published/:slug` — serve published app (public, no auth)
-- `GET /credits` — get current user credit balance
+- `GET /p/:slug` — serve published app (public, no auth; legacy: `/published/:slug`)
+- `GET /credits` — get current user credit balance (also grants 50k free credits on first call)
 - `GET /credits/history` — get credit transaction history
+- `GET /credits/products` — list Stripe credit products/prices
+- `GET /credits/subscription` — check if user has active subscription
+- `POST /credits/checkout` — create Stripe Checkout session (subscription or one-time)
 
 ## How AI Code Generation Works
 
