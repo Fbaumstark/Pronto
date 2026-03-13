@@ -1,5 +1,6 @@
 import { Link } from "wouter";
-import { Menu, Code2 } from "lucide-react";
+import { Menu } from "lucide-react";
+import { ProntoLogoMark } from "@/components/ProntoLogo";
 
 interface MobileTopBarProps {
   onMenuClick: () => void;
@@ -16,10 +17,8 @@ export function MobileTopBar({ onMenuClick, title }: MobileTopBarProps) {
         <Menu className="w-5 h-5" />
       </button>
       <Link href="/" className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-primary to-accent flex items-center justify-center shadow-md">
-          <Code2 className="w-3.5 h-3.5 text-white" />
-        </div>
-        <span className="font-bold text-foreground text-sm">{title || "AI Builder"}</span>
+        <ProntoLogoMark size={28} />
+        <span className="font-display font-bold text-foreground text-sm">{title || "Pronto"}</span>
       </Link>
     </div>
   );

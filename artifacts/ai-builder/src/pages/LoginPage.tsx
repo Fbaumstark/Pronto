@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Code2, Sparkles, Zap, Eye, Loader2, Mail, Lock, User } from "lucide-react";
+import { Sparkles, Zap, Eye, Loader2, Mail, Lock, User } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
+import { ProntoLogoMark } from "@/components/ProntoLogo";
 
 type Mode = "login" | "register";
 
@@ -65,11 +66,9 @@ export function LoginPage() {
 
       <div className="relative z-10 w-full max-w-md flex flex-col items-center text-center gap-6">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center shadow-2xl shadow-primary/30">
-            <Code2 className="w-8 h-8 text-white" />
-          </div>
+          <ProntoLogoMark size={64} className="rounded-2xl shadow-2xl shadow-primary/30" />
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">AI Builder</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">Pronto</h1>
             <p className="text-muted-foreground mt-1">Build software at the speed of thought.</p>
           </div>
         </div>

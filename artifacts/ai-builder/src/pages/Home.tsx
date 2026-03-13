@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
-import { Code2, Wand2, Sparkles } from "lucide-react";
+import { Wand2, Sparkles, Code2 } from "lucide-react";
+import { ProntoLogoMark } from "@/components/ProntoLogo";
 
 export function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -28,12 +29,8 @@ export function Home() {
           <div className="flex justify-center mb-4 md:mb-8">
             <div className="relative">
               <div className="absolute -inset-4 bg-gradient-to-r from-primary to-accent opacity-30 blur-2xl rounded-full animate-pulse" />
-              <div className="relative w-16 h-16 md:w-24 md:h-24 bg-card border border-border/50 rounded-2xl md:rounded-3xl flex items-center justify-center shadow-2xl">
-                <img
-                  src={`${import.meta.env.BASE_URL}images/logo.png`}
-                  alt="AI Builder Logo"
-                  className="w-10 h-10 md:w-16 md:h-16 object-contain"
-                />
+              <div className="relative flex items-center justify-center">
+                <ProntoLogoMark size={80} className="shadow-2xl" />
               </div>
             </div>
           </div>

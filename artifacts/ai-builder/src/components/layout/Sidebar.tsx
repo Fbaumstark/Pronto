@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useListProjects, useCreateProject, useDeleteProject } from "@workspace/api-client-react";
-import { Plus, FolderGit2, Trash2, Code2, Loader2, X, Settings, LogOut, Coins, ChevronDown } from "lucide-react";
+import { Plus, FolderGit2, Trash2, Loader2, X, Settings, LogOut, Coins, ChevronDown } from "lucide-react";
+import { ProntoLogoMark } from "@/components/ProntoLogo";
 import { motion, AnimatePresence } from "framer-motion";
 import { SettingsModal } from "./SettingsModal";
 import { useAuth } from "@workspace/replit-auth-web";
@@ -111,11 +112,11 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
     <div className="w-64 h-full bg-card border-r border-border flex flex-col shadow-2xl z-20 shrink-0">
       <div className="p-6 border-b border-border/50 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3 group" onClick={onClose}>
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/25 group-hover:scale-105 transition-transform duration-300">
-            <Code2 className="w-5 h-5 text-white" />
+          <div className="group-hover:scale-105 transition-transform duration-300">
+            <ProntoLogoMark size={40} />
           </div>
           <div>
-            <h1 className="font-display font-bold text-lg text-foreground tracking-tight">AI Builder</h1>
+            <h1 className="font-display font-bold text-lg text-foreground tracking-tight">Pronto</h1>
             <p className="text-xs text-muted-foreground font-medium">Workspace</p>
           </div>
         </Link>
