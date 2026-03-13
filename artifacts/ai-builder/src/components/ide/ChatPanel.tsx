@@ -1,15 +1,21 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, SquareSquare } from "lucide-react";
+import { Send, Bot, User, Loader2, SquareSquare, CheckCircle2 } from "lucide-react";
 import { useListProjectMessages } from "@workspace/api-client-react";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import ReactMarkdown from "react-markdown";
+import { cleanResponseForDisplay, cleanStreamingForDisplay } from "@/lib/clean-response";
 
-export function ChatPanel({ projectId }: { projectId: number }) {
+interface ChatPanelProps {
+  projectId: number;
+  onFileUpdated?: () => void;
+}
+
+export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
   const draftKey = `chat-draft-${projectId}`;
   const [input, setInput] = useState(() => localStorage.getItem(draftKey) ?? "");
   const scrollRef = useRef<HTMLDivElement>(null);
   const { data: messages, isLoading } = useListProjectMessages(projectId);
-  const { sendMessage, isStreaming, streamingContent, stopStream } = useChatStream(projectId);
+  const { sendMessage, isStreaming, streamingContent, fileUpdateVersion, stopStream, error } = useChatStream(projectId);
 
   const scrollToBottom = () => {
     if (scrollRef.current) {
@@ -20,6 +26,12 @@ export function ChatPanel({ projectId }: { projectId: number }) {
   useEffect(() => {
     scrollToBottom();
   }, [messages, streamingContent]);
+
+  useEffect(() => {
+    if (fileUpdateVersion > 0) {
+      onFileUpdated?.();
+    }
+  }, [fileUpdateVersion]);
 
   const handleInputChange = (val: string) => {
     setInput(val);
@@ -37,6 +49,9 @@ export function ChatPanel({ projectId }: { projectId: number }) {
     setInput("");
     localStorage.removeItem(draftKey);
   };
+
+  const displayStreamContent = cleanStreamingForDisplay(streamingContent);
+  const hasCodeBeenWritten = isStreaming && fileUpdateVersion > 0;
 
   return (
     <div className="flex flex-col h-full bg-card/50">
@@ -81,7 +96,15 @@ export function ChatPanel({ projectId }: { projectId: number }) {
                   {msg.role === 'user' ? (
                     <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
                   ) : (
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <>
+                      <ReactMarkdown>{cleanResponseForDisplay(msg.content)}</ReactMarkdown>
+                      {cleanResponseForDisplay(msg.content) !== msg.content && (
+                        <div className="flex items-center gap-1.5 mt-2 text-xs text-primary/80 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Code updated in preview
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -93,8 +116,8 @@ export function ChatPanel({ projectId }: { projectId: number }) {
                   <Bot className="w-4 h-4 animate-pulse" />
                 </div>
                 <div className="max-w-[85%] rounded-2xl px-4 md:px-5 py-3 md:py-4 shadow-sm bg-muted/30 border border-border text-foreground prose prose-invert prose-sm">
-                  {streamingContent ? (
-                    <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                  {displayStreamContent ? (
+                    <ReactMarkdown>{displayStreamContent}</ReactMarkdown>
                   ) : (
                     <div className="flex gap-1.5 items-center h-5">
                       <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -102,7 +125,19 @@ export function ChatPanel({ projectId }: { projectId: number }) {
                       <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                   )}
+                  {hasCodeBeenWritten && (
+                    <div className="flex items-center gap-1.5 mt-2 text-xs text-primary/80 font-medium">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Writing code to preview…
+                    </div>
+                  )}
                 </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="mx-auto max-w-sm bg-destructive/10 border border-destructive/30 rounded-xl px-4 py-3 text-sm text-destructive text-center">
+                {error}
               </div>
             )}
           </div>

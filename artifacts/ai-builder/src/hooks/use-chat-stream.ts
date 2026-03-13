@@ -1,15 +1,12 @@
 import { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { 
-  getListProjectFilesQueryKey, 
-  getListProjectMessagesQueryKey,
-  type ProjectFile
-} from '@workspace/api-client-react';
+import { getListProjectMessagesQueryKey } from '@workspace/api-client-react';
 
 export function useChatStream(projectId: number) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [fileUpdateVersion, setFileUpdateVersion] = useState(0);
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -25,20 +22,19 @@ export function useChatStream(projectId: number) {
     setIsStreaming(true);
     setStreamingContent('');
     setError(null);
-    
+
     abortControllerRef.current = new AbortController();
 
-    // Optimistically add the user's message to the cache
     const messagesKey = getListProjectMessagesQueryKey(projectId);
     queryClient.setQueryData(messagesKey, (old: any = []) => [
       ...old,
       {
-        id: Math.random(), // Temporary ID
+        id: Math.random(),
         projectId,
         role: 'user',
         content,
-        createdAt: new Date().toISOString()
-      }
+        createdAt: new Date().toISOString(),
+      },
     ]);
 
     try {
@@ -46,11 +42,12 @@ export function useChatStream(projectId: number) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
-        signal: abortControllerRef.current.signal
+        signal: abortControllerRef.current.signal,
       });
 
       if (!res.ok || !res.body) {
-        throw new Error('Stream request failed');
+        const errData = await res.json().catch(() => ({}));
+        throw new Error((errData as any).error || 'Stream request failed');
       }
 
       const reader = res.body.getReader();
@@ -66,51 +63,26 @@ export function useChatStream(projectId: number) {
         buffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const dataStr = line.slice(6).trim();
-            if (!dataStr) continue;
-            
-            try {
-              const data = JSON.parse(dataStr);
-              
-              if (data.type === 'text' || data.content) {
-                // Sometimes SSE sends content directly or via type: text
-                setStreamingContent(prev => prev + (data.content || ''));
-              } 
-              
-              if (data.type === 'file_update') {
-                // Update file cache in real-time
-                queryClient.setQueryData(
-                  getListProjectFilesQueryKey(projectId),
-                  (oldFiles: ProjectFile[] = []) => {
-                    const exists = oldFiles.find(f => f.filename === data.filename);
-                    if (exists) {
-                      return oldFiles.map(f => 
-                        f.filename === data.filename 
-                          ? { ...f, content: data.content, language: data.language || f.language, updatedAt: new Date().toISOString() } 
-                          : f
-                      );
-                    } else {
-                      return [...oldFiles, { 
-                        id: Math.random(), // Temp ID
-                        projectId, 
-                        filename: data.filename, 
-                        content: data.content, 
-                        language: data.language || 'html', 
-                        createdAt: new Date().toISOString(), 
-                        updatedAt: new Date().toISOString() 
-                      }];
-                    }
-                  }
-                );
-              }
-              
-              if (data.type === 'done' || data.done) {
-                break;
-              }
-            } catch (e) {
-              console.error("Failed to parse SSE line:", dataStr, e);
+          if (!line.startsWith('data: ')) continue;
+          const dataStr = line.slice(6).trim();
+          if (!dataStr) continue;
+
+          try {
+            const data = JSON.parse(dataStr);
+
+            if (data.type === 'text') {
+              setStreamingContent((prev) => prev + (data.content || ''));
             }
+
+            if (data.type === 'file_update') {
+              setFileUpdateVersion((v) => v + 1);
+            }
+
+            if (data.type === 'error') {
+              setError(data.error || 'An error occurred');
+            }
+          } catch {
+            // ignore malformed SSE
           }
         }
       }
@@ -120,11 +92,10 @@ export function useChatStream(projectId: number) {
       }
     } finally {
       setIsStreaming(false);
-      // Invalidate both files and messages to fetch the persisted database states
+      setStreamingContent('');
       queryClient.invalidateQueries({ queryKey: getListProjectMessagesQueryKey(projectId) });
-      queryClient.invalidateQueries({ queryKey: getListProjectFilesQueryKey(projectId) });
     }
   };
 
-  return { sendMessage, isStreaming, streamingContent, error, stopStream };
+  return { sendMessage, isStreaming, streamingContent, fileUpdateVersion, error, stopStream };
 }

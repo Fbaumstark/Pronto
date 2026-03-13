@@ -23,6 +23,9 @@ export function Workspace() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<MobileTab>("chat");
   const [rightPanel, setRightPanel] = useState<RightPanelTab>(null);
+  const [previewRefreshSignal, setPreviewRefreshSignal] = useState(0);
+
+  const handleFileUpdated = () => setPreviewRefreshSignal((v) => v + 1);
 
   const toggleRightPanel = (tab: RightPanelTab) => {
     setRightPanel((prev) => (prev === tab ? null : tab));
@@ -63,13 +66,13 @@ export function Workspace() {
 
         <div className="flex-1 overflow-hidden relative">
           <div className={`absolute inset-0 ${activeTab === "chat" ? "flex flex-col" : "hidden"}`}>
-            <ChatPanel projectId={project.id} />
+            <ChatPanel projectId={project.id} onFileUpdated={handleFileUpdated} />
           </div>
           <div className={`absolute inset-0 ${activeTab === "code" ? "flex flex-col" : "hidden"}`}>
             <EditorPanel projectId={project.id} />
           </div>
           <div className={`absolute inset-0 ${activeTab === "preview" ? "flex flex-col" : "hidden"}`}>
-            <PreviewPanel projectId={project.id} />
+            <PreviewPanel projectId={project.id} refreshSignal={previewRefreshSignal} />
           </div>
         </div>
 
@@ -104,7 +107,7 @@ export function Workspace() {
         <div className="flex-1 overflow-hidden">
           <PanelGroup direction="horizontal">
             <Panel defaultSize={35} minSize={25} className="z-10">
-              <ChatPanel projectId={project.id} />
+              <ChatPanel projectId={project.id} onFileUpdated={handleFileUpdated} />
             </Panel>
 
             <PanelResizeHandle className="w-1.5 bg-border hover:bg-primary/50 transition-colors cursor-col-resize z-20 flex items-center justify-center">
@@ -122,7 +125,7 @@ export function Workspace() {
                 </PanelResizeHandle>
 
                 <Panel defaultSize={50} minSize={20}>
-                  <PreviewPanel projectId={project.id} />
+                  <PreviewPanel projectId={project.id} refreshSignal={previewRefreshSignal} />
                 </Panel>
               </PanelGroup>
             </Panel>
