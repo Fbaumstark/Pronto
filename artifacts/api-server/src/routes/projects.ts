@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, max, sum, count } from "drizzle-orm";
+import { eq, desc, max, sum } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   projectsTable,
@@ -16,24 +16,9 @@ import {
 } from "@workspace/api-zod";
 import { getAIClient } from "../lib/ai-client";
 import { isUnlimitedUser } from "../lib/admin";
+import { ensureFreeCredits } from "./credits";
 
-const FREE_CREDITS = 50000;
 const CREDITS_PER_REQUEST = 5000;
-
-async function ensureFreeCredits(userId: string) {
-  const [row] = await db
-    .select({ n: count() })
-    .from(creditLedgerTable)
-    .where(eq(creditLedgerTable.userId, userId));
-  if ((row?.n ?? 0) === 0) {
-    await db.insert(creditLedgerTable).values({
-      userId,
-      amount: FREE_CREDITS,
-      type: "signup_bonus",
-      description: "Free credits on signup",
-    });
-  }
-}
 
 async function getUserBalance(userId: string): Promise<number> {
   const [row] = await db

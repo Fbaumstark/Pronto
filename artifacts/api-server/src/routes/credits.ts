@@ -1,8 +1,10 @@
 import { Router, type IRouter } from "express";
-import { eq, sum, sql } from "drizzle-orm";
+import { eq, sum, count, sql } from "drizzle-orm";
 import { db, creditLedgerTable, usersTable } from "@workspace/db";
 import { isUnlimitedUser } from "../lib/admin";
 import { getUncachableStripeClient } from "../lib/stripeClient";
+
+const FREE_CREDITS = 50000;
 
 const router: IRouter = Router();
 
@@ -12,6 +14,21 @@ async function getUserBalance(userId: string): Promise<number> {
     .from(creditLedgerTable)
     .where(eq(creditLedgerTable.userId, userId));
   return Number(result[0]?.total ?? 0);
+}
+
+export async function ensureFreeCredits(userId: string) {
+  const [row] = await db
+    .select({ n: count() })
+    .from(creditLedgerTable)
+    .where(eq(creditLedgerTable.userId, userId));
+  if ((row?.n ?? 0) === 0) {
+    await db.insert(creditLedgerTable).values({
+      userId,
+      amount: FREE_CREDITS,
+      type: "signup_bonus",
+      description: "Free credits on signup",
+    });
+  }
 }
 
 router.get("/credits", async (req, res) => {
@@ -25,6 +42,7 @@ router.get("/credits", async (req, res) => {
     return;
   }
 
+  await ensureFreeCredits(req.user.id);
   const balance = await getUserBalance(req.user.id);
   res.json({ balance, unlimited: false });
 });
@@ -131,8 +149,8 @@ router.post("/credits/checkout", async (req, res) => {
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "payment",
-      success_url: `${baseUrl}/ai-builder/?payment=success`,
-      cancel_url: `${baseUrl}/ai-builder/?payment=cancelled`,
+      success_url: `${baseUrl}/?payment=success`,
+      cancel_url: `${baseUrl}/?payment=cancelled`,
       metadata: { userId },
     });
 
