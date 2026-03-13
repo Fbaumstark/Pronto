@@ -205,7 +205,7 @@ router.post("/projects/:id/messages", async (req, res) => {
     .map((f) => `=== ${f.filename} (${f.language}) ===\n${f.content}`)
     .join("\n\n");
 
-  const systemPrompt = `You are an AI coding assistant similar to Replit Agent. You help users build web applications by modifying their project files.
+  const systemPrompt = `You are an AI coding assistant that builds web applications by modifying project files.
 
 Current project: "${project.name}"
 Description: "${project.description}"
@@ -213,21 +213,22 @@ Description: "${project.description}"
 Current files:
 ${filesContext}
 
-When the user asks you to make changes, you MUST:
-1. First write a brief explanation of what you'll do
-2. Then output the updated file(s) using this EXACT format for each file:
+When the user asks you to make changes:
+1. Write a brief 1-2 sentence explanation of what you'll do
+2. Output ALL updated file(s) using this EXACT format:
 
 <file name="filename.ext">
 file content here
 </file>
 
-Rules:
-- Always output complete file contents, not partial diffs
-- You can create new files or update existing ones
-- Supported file types: html, css, js, ts, json, etc.
-- The main file is index.html which is shown in the preview
-- Make the code functional and well-styled
-- Use inline CSS and JS in HTML when possible for simplicity`;
+CRITICAL RULES:
+- Always output COMPLETE file contents — never truncate or use placeholders like "// rest of code"
+- Keep HTML concise: avoid unnecessary comments, blank lines, and verbose attributes
+- Combine CSS and JS inline inside index.html to minimise file count
+- Use efficient, compact CSS (shorthand properties, no redundant rules)
+- Never apologise or explain that you ran out of space — just write complete files
+- If a feature requires many lines, simplify it rather than truncating`;
+
 
   const chatMessages: { role: "user" | "assistant"; content: string }[] =
     existingMessages.slice(0, -1).map((m) => ({
@@ -241,110 +242,111 @@ Rules:
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
+  const langMap: Record<string, string> = {
+    html: "html", css: "css", js: "javascript", ts: "typescript",
+    json: "json", md: "markdown", py: "python",
+  };
+
+  function getLanguage(filename: string) {
+    const ext = filename.split(".").pop() ?? "txt";
+    return langMap[ext] ?? ext;
+  }
+
+  async function flushFile(filename: string, rawContent: string) {
+    const content = rawContent.trim();
+    if (!content) return;
+    const language = getLanguage(filename);
+    const existingFile = files.find((f) => f.filename === filename);
+    if (existingFile) {
+      await db.update(projectFilesTable)
+        .set({ content, language, updatedAt: new Date() })
+        .where(eq(projectFilesTable.id, existingFile.id));
+      res.write(`data: ${JSON.stringify({ type: "file_update", fileId: existingFile.id, filename, content, language })}\n\n`);
+    } else {
+      const [newFile] = await db.insert(projectFilesTable)
+        .values({ projectId, filename, content, language })
+        .returning();
+      res.write(`data: ${JSON.stringify({ type: "file_update", fileId: newFile.id, filename, content, language, isNew: true })}\n\n`);
+    }
+  }
+
   let fullResponse = "";
+  let streamBuf = "";
+  let inFile = false;
+  let currentFilename = "";
+  let fileBuf = "";
+
+  async function processStreamBuf() {
+    while (true) {
+      if (!inFile) {
+        const openMatch = streamBuf.match(/<file name="([^"]+)">/);
+        if (openMatch) {
+          const idx = streamBuf.indexOf(openMatch[0]);
+          currentFilename = openMatch[1];
+          fileBuf = "";
+          streamBuf = streamBuf.slice(idx + openMatch[0].length);
+          inFile = true;
+        } else {
+          if (streamBuf.length > 200) streamBuf = streamBuf.slice(-100);
+          break;
+        }
+      } else {
+        const closeIdx = streamBuf.indexOf("</file>");
+        if (closeIdx !== -1) {
+          fileBuf += streamBuf.slice(0, closeIdx);
+          streamBuf = streamBuf.slice(closeIdx + 7);
+          inFile = false;
+          await flushFile(currentFilename, fileBuf);
+          fileBuf = "";
+        } else {
+          const tail = "</file>";
+          let splitAt = streamBuf.length;
+          for (let i = 1; i < tail.length; i++) {
+            if (streamBuf.endsWith(tail.slice(0, i))) {
+              splitAt = streamBuf.length - i;
+              break;
+            }
+          }
+          fileBuf += streamBuf.slice(0, splitAt);
+          streamBuf = streamBuf.slice(splitAt);
+          break;
+        }
+      }
+    }
+  }
 
   try {
     const anthropic = await getAIClient();
     const stream = anthropic.messages.stream({
       model: "claude-sonnet-4-6",
-      max_tokens: 8192,
+      max_tokens: 16000,
       system: systemPrompt,
       messages: chatMessages,
     });
 
     for await (const event of stream) {
-      if (
-        event.type === "content_block_delta" &&
-        event.delta.type === "text_delta"
-      ) {
+      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
         const chunk = event.delta.text;
         fullResponse += chunk;
-        res.write(
-          `data: ${JSON.stringify({ type: "text", content: chunk })}\n\n`
-        );
+        streamBuf += chunk;
+        res.write(`data: ${JSON.stringify({ type: "text", content: chunk })}\n\n`);
+        await processStreamBuf();
       }
     }
 
-    const fileRegex = /<file name="([^"]+)">([\s\S]*?)<\/file>/g;
-    let match;
-    const updatedFiles: { filename: string; content: string; language: string }[] = [];
-
-    while ((match = fileRegex.exec(fullResponse)) !== null) {
-      const filename = match[1];
-      const content = match[2].trim();
-      const ext = filename.split(".").pop() ?? "txt";
-      const langMap: Record<string, string> = {
-        html: "html",
-        css: "css",
-        js: "javascript",
-        ts: "typescript",
-        json: "json",
-        md: "markdown",
-        py: "python",
-      };
-      const language = langMap[ext] ?? ext;
-
-      const existingFile = files.find((f) => f.filename === filename);
-      if (existingFile) {
-        await db
-          .update(projectFilesTable)
-          .set({ content, language, updatedAt: new Date() })
-          .where(eq(projectFilesTable.id, existingFile.id));
-
-        updatedFiles.push({ filename, content, language });
-
-        res.write(
-          `data: ${JSON.stringify({
-            type: "file_update",
-            fileId: existingFile.id,
-            filename,
-            content,
-            language,
-          })}\n\n`
-        );
-      } else {
-        const [newFile] = await db
-          .insert(projectFilesTable)
-          .values({ projectId, filename, content, language })
-          .returning();
-
-        updatedFiles.push({ filename, content, language });
-
-        res.write(
-          `data: ${JSON.stringify({
-            type: "file_update",
-            fileId: newFile.id,
-            filename,
-            content,
-            language,
-            isNew: true,
-          })}\n\n`
-        );
-      }
+    if (inFile && fileBuf.trim()) {
+      await flushFile(currentFilename, fileBuf);
     }
 
-    await db
-      .update(projectsTable)
-      .set({ updatedAt: new Date() })
-      .where(eq(projectsTable.id, projectId));
+    await db.update(projectsTable).set({ updatedAt: new Date() }).where(eq(projectsTable.id, projectId));
 
-    const cleanedResponse = fullResponse
-      .replace(/<file name="[^"]+">[\s\S]*?<\/file>/g, "")
-      .trim();
-
-    await db.insert(projectMessagesTable).values({
-      projectId,
-      role: "assistant",
-      content: fullResponse,
-    });
+    await db.insert(projectMessagesTable).values({ projectId, role: "assistant", content: fullResponse });
 
     await saveVersion(projectId);
 
     if (userId && !unlimited) {
       await db.insert(creditLedgerTable).values({
-        userId,
-        amount: -CREDITS_PER_REQUEST,
-        type: "ai_generation",
+        userId, amount: -CREDITS_PER_REQUEST, type: "ai_generation",
         description: `AI generation for project ${projectId}`,
       });
     }
@@ -354,9 +356,7 @@ Rules:
     res.end();
   } catch (err) {
     console.error("Streaming error:", err);
-    res.write(
-      `data: ${JSON.stringify({ type: "error", error: "An error occurred" })}\n\n`
-    );
+    res.write(`data: ${JSON.stringify({ type: "error", error: "An error occurred" })}\n\n`);
     res.end();
   }
 });
