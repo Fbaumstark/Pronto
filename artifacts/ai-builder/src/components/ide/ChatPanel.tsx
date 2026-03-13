@@ -1,9 +1,21 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, SquareSquare, CheckCircle2 } from "lucide-react";
+import { Send, Bot, User, Loader2, SquareSquare, CheckCircle2, FileCode2 } from "lucide-react";
 import { useListProjectMessages } from "@workspace/api-client-react";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import ReactMarkdown from "react-markdown";
 import { cleanResponseForDisplay, cleanStreamingForDisplay } from "@/lib/clean-response";
+
+function getStreamingCodeInfo(raw: string) {
+  const matches = [...raw.matchAll(/<file name="([^"]+)">/g)];
+  if (matches.length === 0) return null;
+  const last = matches[matches.length - 1];
+  const afterTag = raw.slice(last.index! + last[0].length);
+  const closeIdx = afterTag.indexOf("</file>");
+  const fileContent = closeIdx === -1 ? afterTag : afterTag.slice(0, closeIdx);
+  const allLines = fileContent.split("\n");
+  const visibleLines = allLines.slice(-4).filter((l) => l.trim());
+  return { filename: last[1], lines: allLines.length, visibleLines };
+}
 
 interface ChatPanelProps {
   projectId: number;
@@ -51,7 +63,8 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
   };
 
   const displayStreamContent = cleanStreamingForDisplay(streamingContent);
-  const hasCodeBeenWritten = isStreaming && fileUpdateVersion > 0;
+  const codeInfo = isStreaming ? getStreamingCodeInfo(streamingContent) : null;
+  const isWritingCode = !!codeInfo;
 
   return (
     <div className="flex flex-col h-full bg-card/50">
@@ -115,20 +128,46 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
                 <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center bg-muted border border-border text-foreground shadow-sm">
                   <Bot className="w-4 h-4 animate-pulse" />
                 </div>
-                <div className="max-w-[85%] rounded-2xl px-4 md:px-5 py-3 md:py-4 shadow-sm bg-muted/30 border border-border text-foreground prose prose-invert prose-sm">
-                  {displayStreamContent ? (
-                    <ReactMarkdown>{displayStreamContent}</ReactMarkdown>
-                  ) : (
-                    <div className="flex gap-1.5 items-center h-5">
-                      <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="max-w-[85%] space-y-2">
+                  {/* AI explanation text */}
+                  {displayStreamContent && (
+                    <div className="rounded-2xl px-4 md:px-5 py-3 md:py-4 shadow-sm bg-muted/30 border border-border text-foreground prose prose-invert prose-sm">
+                      <ReactMarkdown>{displayStreamContent}</ReactMarkdown>
                     </div>
                   )}
-                  {hasCodeBeenWritten && (
-                    <div className="flex items-center gap-1.5 mt-2 text-xs text-primary/80 font-medium">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Writing code to preview…
+
+                  {/* Live code writing indicator */}
+                  {isWritingCode && (
+                    <div className="rounded-2xl overflow-hidden border border-primary/30 bg-black/60 shadow-lg shadow-primary/10">
+                      {/* Header bar */}
+                      <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 border-b border-primary/20">
+                        <FileCode2 className="w-3.5 h-3.5 text-primary shrink-0" />
+                        <span className="text-xs font-mono text-primary font-medium truncate flex-1">{codeInfo!.filename}</span>
+                        <span className="text-[10px] font-mono text-muted-foreground shrink-0">{codeInfo!.lines} lines</span>
+                        <Loader2 className="w-3 h-3 text-primary animate-spin shrink-0" />
+                      </div>
+                      {/* Live code lines */}
+                      <div className="px-3 py-2.5 space-y-0.5">
+                        {codeInfo!.visibleLines.map((line, i) => (
+                          <div key={i} className="font-mono text-[10px] text-green-400/80 truncate leading-relaxed">
+                            {line}
+                          </div>
+                        ))}
+                        <div className="font-mono text-[10px] text-green-400 flex items-center gap-0.5 leading-relaxed">
+                          <span className="inline-block w-1.5 h-3 bg-green-400 animate-pulse rounded-sm" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Initial thinking dots */}
+                  {!displayStreamContent && !isWritingCode && (
+                    <div className="rounded-2xl px-4 py-3 shadow-sm bg-muted/30 border border-border">
+                      <div className="flex gap-1.5 items-center h-5">
+                        <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
                     </div>
                   )}
                 </div>

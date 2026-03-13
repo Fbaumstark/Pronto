@@ -88,7 +88,12 @@ export function useChatStream(projectId: number) {
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        setError(err.message || 'Stream failed');
+        const msg = err.message || '';
+        if (msg === 'Load failed' || msg === 'Failed to fetch' || msg.includes('network')) {
+          setError('Connection dropped — your network may have cut out. Please try again.');
+        } else {
+          setError(msg || 'Something went wrong. Please try again.');
+        }
       }
     } finally {
       setIsStreaming(false);

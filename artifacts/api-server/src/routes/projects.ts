@@ -315,6 +315,10 @@ CRITICAL RULES:
     }
   }
 
+  const keepAlive = setInterval(() => {
+    if (!res.writableEnded) res.write(": keep-alive\n\n");
+  }, 15000);
+
   try {
     const anthropic = await getAIClient();
     const stream = anthropic.messages.stream({
@@ -356,8 +360,12 @@ CRITICAL RULES:
     res.end();
   } catch (err) {
     console.error("Streaming error:", err);
-    res.write(`data: ${JSON.stringify({ type: "error", error: "An error occurred" })}\n\n`);
-    res.end();
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: "error", error: "Generation failed. Please try again." })}\n\n`);
+      res.end();
+    }
+  } finally {
+    clearInterval(keepAlive);
   }
 });
 
