@@ -1,63 +1,108 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
-import { ProntoLogoMark } from "@/components/ProntoLogo";
+import { useListProjects, useCreateProject } from "@workspace/api-client-react";
 import {
-  Plus, MessageSquare, Code2, Eye, Rocket, Globe, RotateCcw,
-  Copy, Check, ChevronRight, Zap, Link2, CreditCard
+  Plus, Rocket, Globe, ExternalLink, Copy, Check,
+  Loader2, Clock, FolderGit2, ChevronRight, Zap,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 
-const CODE_LINES = [
-  { indent: 0, text: "<!DOCTYPE html>", color: "text-blue-400" },
-  { indent: 0, text: '<html lang="en">', color: "text-blue-400" },
-  { indent: 1, text: "<head>", color: "text-blue-400" },
-  { indent: 2, text: '<meta charset="UTF-8" />', color: "text-slate-400" },
-  { indent: 2, text: "<title>My App</title>", color: "text-slate-400" },
-  { indent: 2, text: "<style>", color: "text-blue-400" },
-  { indent: 3, text: "body { margin: 0; font-family: sans-serif; }", color: "text-green-400" },
-  { indent: 3, text: ".hero { background: linear-gradient(135deg,", color: "text-green-400" },
-  { indent: 4, text: "  #667eea 0%, #764ba2 100%); }", color: "text-purple-400" },
-  { indent: 2, text: "</style>", color: "text-blue-400" },
-  { indent: 1, text: "</head>", color: "text-blue-400" },
-  { indent: 1, text: "<body>", color: "text-blue-400" },
-  { indent: 2, text: '<div class="hero">', color: "text-yellow-400" },
-  { indent: 3, text: "<h1>Welcome!</h1>", color: "text-orange-400" },
-  { indent: 2, text: "</div>", color: "text-yellow-400" },
-  { indent: 1, text: "</body>", color: "text-blue-400" },
-  { indent: 0, text: "</html>", color: "text-blue-400" },
-];
+interface Deployment {
+  slug: string;
+  customDomain: string | null;
+  isLive: boolean;
+}
 
-function AnimatedCodeWindow() {
-  const [visibleLines, setVisibleLines] = useState(0);
+function useProjectDeployment(projectId: number) {
+  const [deployment, setDeployment] = useState<Deployment | null | undefined>(undefined);
   useEffect(() => {
-    if (visibleLines >= CODE_LINES.length) {
-      const reset = setTimeout(() => setVisibleLines(0), 2000);
-      return () => clearTimeout(reset);
-    }
-    const t = setTimeout(() => setVisibleLines((v) => v + 1), 140);
-    return () => clearTimeout(t);
-  }, [visibleLines]);
+    fetch(`/api/projects/${projectId}/deployment`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setDeployment)
+      .catch(() => setDeployment(null));
+  }, [projectId]);
+  return deployment;
+}
+
+function LiveUrlBadge({ deployment }: { deployment: Deployment }) {
+  const [copied, setCopied] = useState(false);
+  const baseUrl = window.location.origin;
+  const url = deployment.customDomain
+    ? `https://${deployment.customDomain}`
+    : `${baseUrl}/api/p/${deployment.slug}`;
+
+  const copy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div className="rounded-xl overflow-hidden shadow-xl border border-white/10 bg-[#0d1117]">
-      <div className="flex items-center gap-2 px-4 py-2.5 bg-[#161b22] border-b border-white/10">
-        <div className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
-        <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
-        <div className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
-        <span className="ml-2 text-xs text-slate-500 font-mono">index.html</span>
-        <span className="ml-auto text-[10px] text-emerald-400 animate-pulse">● generating</span>
-      </div>
-      <div className="p-4 font-mono text-xs leading-5 min-h-[160px]">
-        {CODE_LINES.slice(0, visibleLines).map((line, i) => (
-          <div key={i} className="flex">
-            <span className="w-5 text-slate-600 shrink-0 select-none text-[10px]">{i + 1}</span>
-            <span style={{ paddingLeft: `${line.indent * 10}px` }} className={line.color}>{line.text}</span>
+    <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-lg px-2.5 py-1.5">
+      <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
+      <span className="text-xs text-green-400 font-medium truncate max-w-[160px]">{url}</span>
+      <button
+        onClick={copy}
+        title="Copy URL"
+        className="p-0.5 rounded hover:bg-green-500/20 text-green-400 transition-colors shrink-0"
+      >
+        {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+      </button>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="p-0.5 rounded hover:bg-green-500/20 text-green-400 transition-colors shrink-0"
+        title="Open site"
+      >
+        <ExternalLink className="w-3 h-3" />
+      </a>
+    </div>
+  );
+}
+
+function ProjectCard({ project }: { project: any }) {
+  const [, setLocation] = useLocation();
+  const deployment = useProjectDeployment(project.id);
+
+  return (
+    <div
+      onClick={() => setLocation(`/project/${project.id}`)}
+      className="group bg-card border border-border/60 rounded-2xl p-5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 cursor-pointer flex flex-col gap-3"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+            <FolderGit2 className="w-4 h-4 text-primary" />
           </div>
-        ))}
-        {visibleLines < CODE_LINES.length && (
-          <div className="flex">
-            <span className="w-5 text-slate-600 shrink-0 text-[10px]">{visibleLines + 1}</span>
-            <span className="inline-block w-2 h-3.5 bg-primary animate-pulse rounded-sm ml-0" />
+          <div className="min-w-0">
+            <h3 className="font-semibold text-foreground text-sm truncate">{project.name}</h3>
+            {project.description && (
+              <p className="text-xs text-muted-foreground truncate mt-0.5">{project.description}</p>
+            )}
+          </div>
+        </div>
+        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-1" />
+      </div>
+
+      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+        <Clock className="w-3 h-3 shrink-0" />
+        <span>Updated {formatDistanceToNow(new Date(project.updatedAt ?? project.createdAt), { addSuffix: true })}</span>
+      </div>
+
+      <div className="min-h-[32px] flex items-center">
+        {deployment === undefined ? (
+          <div className="h-7 w-32 bg-muted/40 rounded-lg animate-pulse" />
+        ) : deployment?.isLive ? (
+          <LiveUrlBadge deployment={deployment} />
+        ) : (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
+            <Globe className="w-3 h-3" />
+            <span>Not published</span>
           </div>
         )}
       </div>
@@ -65,43 +110,69 @@ function AnimatedCodeWindow() {
   );
 }
 
-function StepCard({
-  number, color, title, children,
-}: {
-  number: string; color: string; title: string; children: React.ReactNode;
-}) {
-  return (
-    <div className="relative bg-card border border-border/60 rounded-2xl p-5 flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <span className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center shrink-0 ${color}`}>
-          {number}
-        </span>
-        <h3 className="font-semibold text-foreground text-sm">{title}</h3>
-      </div>
-      {children}
-    </div>
-  );
-}
+function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: number) => void }) {
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const createMutation = useCreateProject();
 
-function CopyableUrl({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    const proj = await createMutation.mutateAsync({ data: { name, description: desc } as any });
+    onCreated(proj.id);
   };
+
   return (
-    <div className="flex items-center gap-1.5 bg-background border border-border/60 rounded-lg px-2.5 py-1.5 font-mono text-[10px] text-muted-foreground">
-      <span className="flex-1 truncate">{url}</span>
-      <button onClick={copy} className="text-muted-foreground hover:text-foreground transition-colors">
-        {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-      </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="bg-card border border-border rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-lg font-bold text-foreground mb-1">New project</h2>
+        <p className="text-sm text-muted-foreground mb-5">Give your app a name, then describe it in the chat.</p>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Project name"
+            className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          <input
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            placeholder="Description (optional)"
+            className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          <div className="flex gap-2 pt-1">
+            <button
+              type="submit"
+              disabled={!name.trim() || createMutation.isPending}
+              className="flex-1 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
+            >
+              {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create project"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 bg-muted hover:bg-muted/80 text-foreground font-semibold py-2.5 rounded-xl text-sm transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
 
 export function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [, setLocation] = useLocation();
+  const { data: projects, isLoading } = useListProjects();
+
+  const liveCount = 0;
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full overflow-hidden bg-background">
@@ -110,212 +181,103 @@ export function Home() {
       <Sidebar />
 
       <main className="flex-1 overflow-y-auto">
-        <div className="relative min-h-full">
-          {/* Background */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            <div className="absolute -top-32 -left-32 w-[500px] h-[500px] bg-primary/8 rounded-full blur-[120px]" />
-            <div className="absolute top-1/3 -right-40 w-[500px] h-[500px] bg-accent/6 rounded-full blur-[140px]" />
+        <div className="max-w-5xl mx-auto px-5 py-8 md:py-12 space-y-8">
+
+          {/* ── HEADER ── */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground">My Projects</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                {isLoading ? "Loading…" : projects?.length === 0
+                  ? "No projects yet — create your first one below"
+                  : `${projects?.length} project${projects?.length !== 1 ? "s" : ""}${
+                      projects?.length ? "" : ""
+                    }`}
+              </p>
+            </div>
+            <button
+              onClick={() => setShowNewProject(true)}
+              className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-primary/20"
+            >
+              <Plus className="w-4 h-4" />
+              New Project
+            </button>
           </div>
 
-          <div className="relative z-10 max-w-4xl mx-auto px-5 py-10 md:py-16 space-y-12">
-
-            {/* ── WELCOME HERO ── */}
-            <section className="text-center space-y-4">
-              <div className="flex justify-center">
-                <div className="relative">
-                  <div className="absolute -inset-6 bg-gradient-to-r from-primary/20 to-accent/20 blur-3xl rounded-full" />
-                  <ProntoLogoMark size={64} className="relative" />
-                </div>
+          {/* ── PROJECT GRID ── */}
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-card border border-border/60 rounded-2xl p-5 h-36 animate-pulse" />
+              ))}
+            </div>
+          ) : projects?.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center space-y-5">
+              <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center">
+                <Rocket className="w-10 h-10 text-primary" />
               </div>
-              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 text-sm text-primary font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                AI-Powered App Builder
-              </div>
-              <h1 className="text-4xl sm:text-5xl md:text-6xl font-display font-bold tracking-tight leading-[1.05]">
-                <span className="text-foreground">Build apps with</span>
-                <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-violet-400 to-accent">just words.</span>
-              </h1>
-              <p className="text-lg text-muted-foreground max-w-lg mx-auto leading-relaxed">
-                You're in. Here's how to go from idea to live app in minutes — no coding needed.
-              </p>
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground bg-muted/40 border border-border/50 rounded-full px-5 py-2.5 w-fit mx-auto">
-                <Plus className="w-4 h-4 text-primary" />
-                Click <strong className="text-foreground mx-1">+&nbsp;New Project</strong> in the sidebar to get started
-              </div>
-            </section>
-
-            {/* ── GETTING STARTED GUIDE ── */}
-            <section className="space-y-4">
-              <div className="text-center">
-                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">Getting started</span>
-                <h2 className="text-2xl md:text-3xl font-bold text-foreground mt-2">From idea to live app in 4 steps</h2>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-                {/* Step 1 */}
-                <StepCard number="1" color="bg-primary/20 border border-primary/30 text-primary" title="Create a new project">
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Click <strong className="text-foreground">+</strong> in the left sidebar or pick one of the ready-made templates —
-                    a landing page, to-do app, portfolio, and more. Templates give you a head start.
-                  </p>
-                  <div className="flex items-center gap-2 bg-muted/30 rounded-lg p-3 text-xs text-muted-foreground border border-border/40">
-                    <Plus className="w-4 h-4 text-primary shrink-0" />
-                    <span>Sidebar → <strong className="text-foreground">New Project</strong> or choose a template</span>
-                  </div>
-                </StepCard>
-
-                {/* Step 2 */}
-                <StepCard number="2" color="bg-violet-500/20 border border-violet-500/30 text-violet-400" title="Describe your app in chat">
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Type what you want to build in plain English. Be as specific or as vague as you like —
-                    the AI will ask follow-up questions and start writing code in real time.
-                  </p>
-                  <AnimatedCodeWindow />
-                  <div className="space-y-1.5 text-xs text-muted-foreground">
-                    {[
-                      "\"Build a landing page for my bakery with a menu and contact form\"",
-                      "\"Make a quiz app with 5 questions and a score at the end\"",
-                      "\"Create a personal portfolio with a dark theme\"",
-                    ].map((ex) => (
-                      <div key={ex} className="flex items-start gap-2 bg-muted/20 rounded-lg px-3 py-2 border border-border/30">
-                        <MessageSquare className="w-3 h-3 text-violet-400 shrink-0 mt-0.5" />
-                        <span className="italic">{ex}</span>
-                      </div>
-                    ))}
-                  </div>
-                </StepCard>
-
-                {/* Step 3 */}
-                <StepCard number="3" color="bg-green-500/20 border border-green-500/30 text-green-400" title="Deploy to get a public URL">
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    When you're happy with the preview, click <strong className="text-foreground">Deploy</strong> in the right-hand panel.
-                    Your app goes live instantly and gets a unique Pronto URL — shareable with anyone, no sign-in needed.
-                  </p>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 bg-muted/30 rounded-lg p-2.5 border border-border/40">
-                      <Rocket className="w-4 h-4 text-green-400 shrink-0" />
-                      <span className="text-xs text-foreground font-medium">Click Deploy → your app is live in seconds</span>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Your app URL looks like:</p>
-                      <CopyableUrl url="https://yoursite.com/api/p/pronto-ab12cd34" />
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px] text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
-                      <Check className="w-3 h-3 shrink-0" />
-                      Anyone with the link can open your app — no account needed
-                    </div>
-                  </div>
-                </StepCard>
-
-                {/* Step 4 */}
-                <StepCard number="4" color="bg-blue-500/20 border border-blue-500/30 text-blue-400" title="Use your own domain (optional)">
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Want <code className="text-primary text-[11px] bg-primary/10 px-1 rounded">myapp.com</code> instead of the Pronto URL?
-                    Add your custom domain in the Deploy panel and point your DNS CNAME to this server.
-                  </p>
-                  <div className="space-y-2">
-                    <div className="bg-muted/30 rounded-xl p-3 border border-border/40 space-y-2">
-                      <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">How to connect your domain</p>
-                      {[
-                        { icon: "1️⃣", text: "In the Deploy panel, click \"Add custom domain\"" },
-                        { icon: "2️⃣", text: "Enter your domain, e.g. myapp.com" },
-                        { icon: "3️⃣", text: "In your domain registrar (GoDaddy, Namecheap, etc.), add a CNAME record pointing to this server's hostname" },
-                        { icon: "4️⃣", text: "DNS updates in minutes — your custom URL goes live" },
-                      ].map(({ icon, text }) => (
-                        <div key={text} className="flex items-start gap-2 text-xs text-muted-foreground">
-                          <span className="shrink-0">{icon}</span>
-                          <span>{text}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div className="bg-muted/20 rounded-lg p-2 border border-border/30 text-center">
-                        <p className="text-muted-foreground">Pronto URL (free)</p>
-                        <p className="text-foreground font-medium mt-0.5">yoursite.com/api/p/pronto-xxx</p>
-                      </div>
-                      <div className="bg-blue-500/10 rounded-lg p-2 border border-blue-500/20 text-center">
-                        <p className="text-blue-400">Your own domain</p>
-                        <p className="text-foreground font-medium mt-0.5">mybrilliantapp.com</p>
-                      </div>
-                    </div>
-                  </div>
-                </StepCard>
-
-              </div>
-            </section>
-
-            {/* ── CREDITS EXPLAINER ── */}
-            <section className="bg-card border border-border/60 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-bold text-foreground">Your credits</h2>
-              </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Every AI generation uses <strong className="text-foreground">~5,000 credits</strong>. You received <strong className="text-foreground">50,000 free credits</strong> when you signed up — enough for about 10 full app generations. Your balance is always shown in the sidebar.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {[
-                  { label: "Free on signup", value: "50,000", sub: "≈ 10 generations · no card needed", color: "text-green-400", bg: "bg-green-500/10 border-green-500/20" },
-                  { label: "Monthly Plan", value: "$10/mo", sub: "500,000 credits · auto-renews monthly", color: "text-primary", bg: "bg-primary/10 border-primary/20" },
-                  { label: "Auto Top-up", value: "$25", sub: "1,250,000 credits · triggers when balance hits $0", color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20" },
-                ].map(({ label, value, sub, color, bg }) => (
-                  <div key={label} className={`rounded-xl p-3 border ${bg} text-center`}>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
-                    <p className={`text-xl font-bold ${color}`}>{value}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2 border border-border/40">
-                <CreditCard className="w-3.5 h-3.5 shrink-0 text-primary" />
-                To subscribe, click <strong className="text-foreground mx-1">Buy Credits</strong> in the sidebar. When your balance hits zero, $25 is charged automatically — no interruption to your build.
-              </div>
-            </section>
-
-            {/* ── TIPS ── */}
-            <section className="space-y-3">
-              <h2 className="text-lg font-bold text-foreground">Tips for great results</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[
-                  { emoji: "🎯", title: "Be specific", desc: "\"A landing page for a yoga studio with a booking button and green color scheme\" works better than \"a website\"." },
-                  { emoji: "🔁", title: "Iterate freely", desc: "After the first generation, keep chatting — \"make the header bigger\", \"add a footer\", \"change to dark mode\"." },
-                  { emoji: "🕹️", title: "Use version history", desc: "Every AI generation is auto-saved. If you don't like a change, roll back to any previous version instantly." },
-                  { emoji: "🧩", title: "Start from a template", desc: "Templates give the AI a solid foundation. It's faster than starting from scratch and the results are polished." },
-                ].map(({ emoji, title, desc }) => (
-                  <div key={title} className="bg-card border border-border/50 rounded-xl p-4 hover:border-primary/30 transition-colors">
-                    <div className="text-xl mb-2">{emoji}</div>
-                    <h3 className="text-sm font-semibold text-foreground mb-1">{title}</h3>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* ── CTA ── */}
-            <section className="relative rounded-3xl overflow-hidden border border-border/50 text-center">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-accent/10" />
-              <div className="relative px-8 py-12 space-y-4">
-                <div className="text-5xl">🚀</div>
-                <h2 className="text-2xl md:text-3xl font-bold text-foreground">Ready to build?</h2>
-                <p className="text-muted-foreground max-w-sm mx-auto">
-                  Click <strong className="text-foreground">+</strong> in the sidebar to start your first project. It takes 30 seconds.
+              <div>
+                <h2 className="text-xl font-bold text-foreground">Build your first app</h2>
+                <p className="text-muted-foreground mt-2 max-w-xs">
+                  Describe any app in plain English — Pronto's AI writes the code and gives you a live preview in seconds.
                 </p>
-                <div className="flex flex-wrap gap-2 justify-center pt-2">
-                  {["Portfolio site", "Landing page", "To-do app", "Calculator", "Quiz game", "Restaurant menu"].map((idea) => (
-                    <span key={idea} className="text-xs bg-card border border-border/60 rounded-full px-3 py-1.5 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors cursor-default">
-                      {idea}
-                    </span>
-                  ))}
-                </div>
               </div>
-            </section>
+              <button
+                onClick={() => setShowNewProject(true)}
+                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 py-3 rounded-xl text-sm transition-colors shadow-lg shadow-primary/20"
+              >
+                <Plus className="w-4 h-4" />
+                Create a project
+              </button>
+              <div className="flex flex-wrap justify-center gap-2 max-w-sm pt-2">
+                {["Landing page", "To-do app", "Portfolio", "Quiz game", "Restaurant menu", "Calculator"].map((idea) => (
+                  <button
+                    key={idea}
+                    onClick={() => setShowNewProject(true)}
+                    className="text-xs bg-muted/50 border border-border/60 hover:border-primary/30 hover:text-foreground rounded-full px-3 py-1.5 text-muted-foreground transition-colors"
+                  >
+                    {idea}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {projects.map((project) => (
+                <ProjectCard key={project.id} project={project} />
+              ))}
+              <button
+                onClick={() => setShowNewProject(true)}
+                className="border-2 border-dashed border-border/60 hover:border-primary/40 rounded-2xl p-5 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-primary transition-all min-h-[140px] group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-muted/50 group-hover:bg-primary/10 flex items-center justify-center transition-colors">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <span className="text-sm font-medium">New project</span>
+              </button>
+            </div>
+          )}
 
-            <div className="h-8" />
+          {/* ── CREDITS STRIP ── */}
+          <div className="border-t border-border/40 pt-6">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Zap className="w-3.5 h-3.5 text-primary" />
+              <span>Each AI generation uses ~5,000 credits. Subscribe for $10/month (500k credits) — auto top-up at $25 if balance hits zero.</span>
+            </div>
           </div>
+
         </div>
       </main>
+
+      {showNewProject && (
+        <NewProjectModal
+          onClose={() => setShowNewProject(false)}
+          onCreated={(id) => {
+            setShowNewProject(false);
+            setLocation(`/project/${id}`);
+          }}
+        />
+      )}
     </div>
   );
 }
