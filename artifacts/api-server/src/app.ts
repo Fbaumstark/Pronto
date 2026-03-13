@@ -2,13 +2,9 @@ import express, { type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import path from "path";
-import { fileURLToPath } from "url";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import router from "./routes";
 import { WebhookHandlers } from "./webhookHandlers";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app: Express = express();
 
@@ -52,12 +48,12 @@ app.use("/api", router);
 
 // Serve the built React frontend in production
 if (process.env.NODE_ENV === "production") {
-  // In production the built frontend is at artifacts/ai-builder/dist/public
-  // relative to the workspace root (two directories up from api-server/src)
-  const frontendDist = path.resolve(__dirname, "../../ai-builder/dist/public");
+  // process.cwd() is the workspace root when the server is launched via
+  // `node artifacts/api-server/dist/index.cjs` from the repo root.
+  const frontendDist = path.join(process.cwd(), "artifacts/ai-builder/dist/public");
   app.use(express.static(frontendDist));
   // SPA fallback — any non-API route returns index.html
-  app.get("*", (_req, res) => {
+  app.use((_req, res) => {
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 }
