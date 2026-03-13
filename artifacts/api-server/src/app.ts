@@ -1,9 +1,14 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import path from "path";
+import { fileURLToPath } from "url";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import router from "./routes";
 import { WebhookHandlers } from "./webhookHandlers";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app: Express = express();
 
