@@ -30,7 +30,7 @@ class ProxiedStripe {
     const response = await this.connectors.proxy("stripe", path, options);
     if (!response.ok) {
       const err = await response.json().catch(() => ({ error: { message: response.statusText } }));
-      throw new Error(`Stripe API error: ${err?.error?.message ?? response.statusText}`);
+      throw new Error(`Stripe API error: ${(err as any)?.error?.message ?? response.statusText}`);
     }
     return response.json();
   }
@@ -85,14 +85,26 @@ class ProxiedStripe {
       this.proxyRequest("/v1/products?active=true&limit=20"),
       this.proxyRequest("/v1/prices?active=true&limit=100"),
     ]);
-    return { products: productsResp.data ?? [], prices: pricesResp.data ?? [] };
+    return { products: (productsResp as any).data ?? [], prices: (pricesResp as any).data ?? [] };
   }
 }
 
 export async function getUncachableStripeClient(): Promise<any> {
   const secretKey = await getStripeSecretKey();
   if (secretKey) {
-    return new Stripe(secretKey);
+    const stripe = new Stripe(secretKey);
+    (stripe as any).createCustomer = (params: any) => stripe.customers.create(params);
+    (stripe as any).createCheckoutSession = (params: any) => stripe.checkout.sessions.create(params);
+    (stripe as any).retrieveCheckoutSession = (id: string) =>
+      stripe.checkout.sessions.retrieve(id, { expand: ["line_items.data.price.product"] });
+    (stripe as any).listProductsWithPrices = async () => {
+      const [products, prices] = await Promise.all([
+        stripe.products.list({ active: true, limit: 20 }),
+        stripe.prices.list({ active: true, limit: 100 }),
+      ]);
+      return { products: products.data, prices: prices.data };
+    };
+    return stripe;
   }
   return new ProxiedStripe();
 }
@@ -101,10 +113,7 @@ export async function getStripeSync(): Promise<StripeSync> {
   if (stripeSyncInstance) return stripeSyncInstance;
   const secretKey = await getStripeSecretKey();
   if (!secretKey) {
-    throw new Error(
-      "STRIPE_SECRET_KEY environment variable is required for webhook sync. " +
-      "Please add your Stripe secret key to the project secrets."
-    );
+    throw new Error("STRIPE_SECRET_KEY environment variable is required for webhook sync.");
   }
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL required");
