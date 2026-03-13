@@ -106,7 +106,7 @@ router.get("/login", async (req: Request, res: Response) => {
     scope: "openid email profile offline_access",
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
-    prompt: "login consent",
+    prompt: "login",
     state,
     nonce,
   });
