@@ -6,6 +6,7 @@ import { useListProjects, useCreateProject } from "@workspace/api-client-react";
 import {
   Plus, Rocket, ExternalLink, Copy, Check,
   Loader2, Clock, FolderGit2, Zap, ArrowUpRight, ChevronRight,
+  Globe, X, Link2, CheckCircle2, AlertCircle, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -66,10 +67,215 @@ function LiveUrlBadge({ deployment }: { deployment: Deployment }) {
   );
 }
 
+function CopySnippet({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+      className="flex items-center gap-2 w-full text-left bg-background/80 border border-border/60 rounded-lg px-3 py-2 font-mono text-xs text-foreground hover:border-primary/40 transition-colors group"
+    >
+      <span className="flex-1 truncate">{text}</span>
+      {copied ? <Check className="w-3.5 h-3.5 text-green-400 shrink-0" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground shrink-0 group-hover:text-foreground" />}
+    </button>
+  );
+}
+
+function CustomDomainModal({
+  projectId,
+  deployment,
+  onClose,
+  onSaved,
+}: {
+  projectId: number;
+  deployment: Deployment;
+  onClose: () => void;
+  onSaved: (domain: string) => void;
+}) {
+  const [domain, setDomain] = useState(deployment.customDomain ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [guideOpen, setGuideOpen] = useState(true);
+
+  const cnameTarget = window.location.host;
+  const appUrl = `${window.location.origin}/api/p/${deployment.slug}`;
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleaned = domain.trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+    if (!cleaned) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/deployment/domain`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customDomain: cleaned }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed to save");
+      setSaved(true);
+      onSaved(cleaned);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const steps = [
+    {
+      n: 1,
+      title: "Log in to Cloudflare and select your domain",
+      detail: 'Go to cloudflare.com → Dashboard → click your domain → open the "DNS" tab.',
+    },
+    {
+      n: 2,
+      title: 'Click "Add record" and fill in these values',
+      detail: null,
+      record: { type: "CNAME", name: "www  (or @ for root)", target: cnameTarget, proxy: "DNS only (grey cloud)" },
+    },
+    {
+      n: 3,
+      title: "Set SSL mode to Full",
+      detail: 'Still in Cloudflare, go to SSL/TLS → Overview → choose "Full". This prevents redirect loops.',
+    },
+    {
+      n: 4,
+      title: "Enter your domain above and save",
+      detail: "Type your domain (e.g. www.example.com) in the field above. Our server needs to know which project to serve when your domain is visited.",
+    },
+    {
+      n: 5,
+      title: "Wait ~5 minutes for DNS to propagate",
+      detail: "Cloudflare is usually instant, but global DNS can take a few minutes. Then visit your domain and you should see your app.",
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
+      <div
+        className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
+        style={{ maxHeight: "90vh" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Globe className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-foreground">Connect a custom domain</h2>
+              <p className="text-xs text-muted-foreground">Works with any registrar — Cloudflare guide below</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+
+          {/* Domain input */}
+          <form onSubmit={handleSave} className="space-y-2">
+            <label className="text-xs font-semibold text-foreground">Your custom domain</label>
+            <div className="flex gap-2">
+              <input
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                placeholder="www.yourdomain.com"
+                className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+              <button
+                type="submit"
+                disabled={saving || !domain.trim()}
+                className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground text-sm font-semibold px-4 py-2 rounded-xl transition-colors shrink-0"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle2 className="w-4 h-4" /> : "Save"}
+              </button>
+            </div>
+            {error && (
+              <div className="flex items-center gap-1.5 text-xs text-destructive">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {error}
+              </div>
+            )}
+            {saved && (
+              <div className="flex items-center gap-1.5 text-xs text-green-400">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Domain saved — visit it after DNS propagates.
+              </div>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              Current Pronto URL: <a href={appUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">{appUrl}</a>
+            </p>
+          </form>
+
+          {/* Cloudflare guide */}
+          <div className="border border-border/60 rounded-xl overflow-hidden">
+            <button
+              onClick={() => setGuideOpen((o) => !o)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-foreground">Cloudflare setup guide</span>
+                <span className="text-[10px] bg-orange-500/15 text-orange-400 border border-orange-500/20 px-1.5 py-0.5 rounded font-medium">Free</span>
+              </div>
+              {guideOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </button>
+
+            {guideOpen && (
+              <div className="px-4 pb-4 pt-3 space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Cloudflare is free for DNS and gives you SSL automatically. If you use another registrar (GoDaddy, Namecheap, etc.) the steps are the same — just add a CNAME record.
+                </p>
+
+                {steps.map((step) => (
+                  <div key={step.n} className="flex gap-3">
+                    <div className="w-5 h-5 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-[10px] font-bold text-primary">{step.n}</span>
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <p className="text-xs font-semibold text-foreground">{step.title}</p>
+                      {step.detail && <p className="text-xs text-muted-foreground">{step.detail}</p>}
+                      {step.record && (
+                        <div className="bg-muted/30 border border-border/60 rounded-lg p-3 space-y-1.5 text-xs">
+                          {Object.entries(step.record).map(([k, v]) => (
+                            <div key={k} className="flex items-start gap-2">
+                              <span className="text-muted-foreground w-16 shrink-0 capitalize">{k}:</span>
+                              {k === "target" ? (
+                                <CopySnippet text={v} />
+                              ) : (
+                                <span className="font-mono text-foreground font-medium">{v}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex items-start gap-2 bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+                  <Link2 className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-300">
+                    <span className="font-semibold">Tip:</span> If using a root domain (@), some registrars don't support CNAME at root — use <span className="font-mono">www</span> instead and set up a redirect from the root to www in Cloudflare's Page Rules.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProjectCard({ project }: { project: any }) {
   const [, setLocation] = useLocation();
   const { deployment, refetch } = useProjectDeployment(project.id);
   const [deploying, setDeploying] = useState(false);
+  const [showDomain, setShowDomain] = useState(false);
 
   const handleDeploy = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -83,60 +289,89 @@ function ProjectCard({ project }: { project: any }) {
   };
 
   return (
-    <div
-      onClick={() => setLocation(`/project/${project.id}`)}
-      className="group bg-card border border-border/60 rounded-2xl p-5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 cursor-pointer flex flex-col gap-3"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
-            <FolderGit2 className="w-4 h-4 text-primary" />
+    <>
+      <div
+        onClick={() => setLocation(`/project/${project.id}`)}
+        className="group bg-card border border-border/60 rounded-2xl p-5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 cursor-pointer flex flex-col gap-3"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+              <FolderGit2 className="w-4 h-4 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-semibold text-foreground text-sm truncate">{project.name}</h3>
+              {project.description && (
+                <p className="text-xs text-muted-foreground truncate mt-0.5">{project.description}</p>
+              )}
+            </div>
           </div>
-          <div className="min-w-0">
-            <h3 className="font-semibold text-foreground text-sm truncate">{project.name}</h3>
-            {project.description && (
-              <p className="text-xs text-muted-foreground truncate mt-0.5">{project.description}</p>
-            )}
-          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-1" />
         </div>
-        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-1" />
-      </div>
 
-      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-        <Clock className="w-3 h-3 shrink-0" />
-        <span>Updated {formatDistanceToNow(new Date(project.updatedAt ?? project.createdAt), { addSuffix: true })}</span>
-      </div>
+        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <Clock className="w-3 h-3 shrink-0" />
+          <span>Updated {formatDistanceToNow(new Date(project.updatedAt ?? project.createdAt), { addSuffix: true })}</span>
+        </div>
 
-      <div className="flex items-center gap-2 mt-1">
-        {deployment === undefined ? (
-          <div className="h-7 w-32 bg-muted/40 rounded-lg animate-pulse" />
-        ) : deployment?.isLive ? (
-          <>
-            <LiveUrlBadge deployment={deployment} />
+        <div className="flex items-center gap-2 mt-1">
+          {deployment === undefined ? (
+            <div className="h-7 w-32 bg-muted/40 rounded-lg animate-pulse" />
+          ) : deployment?.isLive ? (
+            <>
+              <LiveUrlBadge deployment={deployment} />
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowDomain(true); }}
+                title="Connect custom domain"
+                className="shrink-0 p-1.5 rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Globe className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={handleDeploy}
+                disabled={deploying}
+                title="Re-publish"
+                className="shrink-0 p-1.5 rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {deploying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpRight className="w-3.5 h-3.5" />}
+              </button>
+            </>
+          ) : (
             <button
               onClick={handleDeploy}
               disabled={deploying}
-              title="Re-publish"
-              className="shrink-0 p-1.5 rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1.5 bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/40 text-primary text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
             >
-              {deploying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpRight className="w-3.5 h-3.5" />}
+              {deploying ? (
+                <><Loader2 className="w-3 h-3 animate-spin" /> Publishing…</>
+              ) : (
+                <><Rocket className="w-3 h-3" /> Publish</>
+              )}
             </button>
-          </>
-        ) : (
-          <button
-            onClick={handleDeploy}
-            disabled={deploying}
-            className="flex items-center gap-1.5 bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/40 text-primary text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
+          )}
+        </div>
+
+        {/* Custom domain chip — shown if one is set */}
+        {deployment?.isLive && deployment.customDomain && (
+          <div
+            onClick={(e) => { e.stopPropagation(); setShowDomain(true); }}
+            className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           >
-            {deploying ? (
-              <><Loader2 className="w-3 h-3 animate-spin" /> Publishing…</>
-            ) : (
-              <><Rocket className="w-3 h-3" /> Publish</>
-            )}
-          </button>
+            <Globe className="w-3 h-3 shrink-0" />
+            <span className="truncate">{deployment.customDomain}</span>
+          </div>
         )}
       </div>
-    </div>
+
+      {showDomain && deployment?.isLive && (
+        <CustomDomainModal
+          projectId={project.id}
+          deployment={deployment}
+          onClose={() => setShowDomain(false)}
+          onSaved={async () => { await refetch(); }}
+        />
+      )}
+    </>
   );
 }
 
