@@ -5,7 +5,7 @@ import { useAuth } from "@workspace/replit-auth-web";
 type Mode = "login" | "register";
 
 export function LoginPage() {
-  const { refetch } = useAuth() as any;
+  const { setUser } = useAuth() as any;
   const [mode, setMode] = useState<Mode>("login");
   const [firstName, setFirstName] = useState("");
   const [email, setEmail] = useState("");
@@ -42,7 +42,7 @@ export function LoginPage() {
         return;
       }
 
-      refetch?.();
+      setUser?.(data.user);
     } catch {
       setError("Network error. Please try again.");
     } finally {

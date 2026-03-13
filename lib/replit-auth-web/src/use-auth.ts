@@ -7,6 +7,7 @@ interface AuthState {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  setUser: (user: AuthUser | null) => void;
   logout: () => Promise<void>;
   refetch: () => void;
 }
@@ -56,6 +57,7 @@ export function useAuth(): AuthState {
     user,
     isLoading,
     isAuthenticated: !!user,
+    setUser,
     logout,
     refetch,
   };

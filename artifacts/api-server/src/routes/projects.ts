@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, max } from "drizzle-orm";
+import { eq, desc, max, sum, count } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   projectsTable,
@@ -20,11 +20,11 @@ const FREE_CREDITS = 50000;
 const CREDITS_PER_REQUEST = 5000;
 
 async function ensureFreeCredits(userId: string) {
-  const existing = await db
-    .select()
+  const [row] = await db
+    .select({ n: count() })
     .from(creditLedgerTable)
     .where(eq(creditLedgerTable.userId, userId));
-  if (existing.length === 0) {
+  if ((row?.n ?? 0) === 0) {
     await db.insert(creditLedgerTable).values({
       userId,
       amount: FREE_CREDITS,
@@ -35,23 +35,18 @@ async function ensureFreeCredits(userId: string) {
 }
 
 async function getUserBalance(userId: string): Promise<number> {
-  const result = await db
-    .select()
+  const [row] = await db
+    .select({ total: sum(creditLedgerTable.amount) })
     .from(creditLedgerTable)
     .where(eq(creditLedgerTable.userId, userId));
-  return result.reduce((sum, r) => sum + r.amount, 0);
+  return Number(row?.total ?? 0);
 }
 
 async function saveVersion(projectId: number) {
-  const files = await db
-    .select()
-    .from(projectFilesTable)
-    .where(eq(projectFilesTable.projectId, projectId));
-
-  const lastVersion = await db
-    .select({ max: max(projectVersionsTable.versionNumber) })
-    .from(projectVersionsTable)
-    .where(eq(projectVersionsTable.projectId, projectId));
+  const [files, lastVersion] = await Promise.all([
+    db.select().from(projectFilesTable).where(eq(projectFilesTable.projectId, projectId)),
+    db.select({ max: max(projectVersionsTable.versionNumber) }).from(projectVersionsTable).where(eq(projectVersionsTable.projectId, projectId)),
+  ]);
 
   const nextVersion = (lastVersion[0]?.max ?? 0) + 1;
 
@@ -104,9 +99,9 @@ router.post("/projects", async (req, res) => {
     }];
   }
 
-  for (const f of starterFiles) {
-    await db.insert(projectFilesTable).values({ projectId: project.id, ...f });
-  }
+  await db.insert(projectFilesTable).values(
+    starterFiles.map((f) => ({ projectId: project.id, ...f }))
+  );
 
   res.status(201).json(project);
 });
@@ -123,17 +118,10 @@ router.get("/projects/:id", async (req, res) => {
     return;
   }
 
-  const files = await db
-    .select()
-    .from(projectFilesTable)
-    .where(eq(projectFilesTable.projectId, id))
-    .orderBy(projectFilesTable.filename);
-
-  const messages = await db
-    .select()
-    .from(projectMessagesTable)
-    .where(eq(projectMessagesTable.projectId, id))
-    .orderBy(projectMessagesTable.createdAt);
+  const [files, messages] = await Promise.all([
+    db.select().from(projectFilesTable).where(eq(projectFilesTable.projectId, id)).orderBy(projectFilesTable.filename),
+    db.select().from(projectMessagesTable).where(eq(projectMessagesTable.projectId, id)).orderBy(projectMessagesTable.createdAt),
+  ]);
 
   res.json({ ...project, files, messages });
 });
@@ -204,16 +192,10 @@ router.post("/projects/:id/messages", async (req, res) => {
     content: body.content,
   });
 
-  const files = await db
-    .select()
-    .from(projectFilesTable)
-    .where(eq(projectFilesTable.projectId, projectId));
-
-  const existingMessages = await db
-    .select()
-    .from(projectMessagesTable)
-    .where(eq(projectMessagesTable.projectId, projectId))
-    .orderBy(projectMessagesTable.createdAt);
+  const [files, existingMessages] = await Promise.all([
+    db.select().from(projectFilesTable).where(eq(projectFilesTable.projectId, projectId)),
+    db.select().from(projectMessagesTable).where(eq(projectMessagesTable.projectId, projectId)).orderBy(projectMessagesTable.createdAt),
+  ]);
 
   const filesContext = files
     .map((f) => `=== ${f.filename} (${f.language}) ===\n${f.content}`)
@@ -305,10 +287,6 @@ Rules:
           .set({ content, language, updatedAt: new Date() })
           .where(eq(projectFilesTable.id, existingFile.id));
 
-        const [updated] = await db
-          .select()
-          .from(projectFilesTable)
-          .where(eq(projectFilesTable.id, existingFile.id));
         updatedFiles.push({ filename, content, language });
 
         res.write(
@@ -411,15 +389,11 @@ router.put("/projects/:projectId/files/:fileId", async (req, res) => {
     return;
   }
 
-  await db
+  const [updated] = await db
     .update(projectFilesTable)
     .set({ content: body.content, updatedAt: new Date() })
-    .where(eq(projectFilesTable.id, fileId));
-
-  const [updated] = await db
-    .select()
-    .from(projectFilesTable)
-    .where(eq(projectFilesTable.id, fileId));
+    .where(eq(projectFilesTable.id, fileId))
+    .returning();
 
   res.json(updated);
 });
