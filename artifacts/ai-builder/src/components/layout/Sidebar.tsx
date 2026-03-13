@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { SettingsModal } from "./SettingsModal";
 import { useAuth } from "@workspace/replit-auth-web";
 import { TemplatePicker } from "@/components/templates/TemplatePicker";
+import { EmbeddedCheckoutModal } from "@/components/payments/EmbeddedCheckoutModal";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -32,10 +33,15 @@ interface CreditProduct {
   currency: string;
 }
 
-function BuyCreditsModal({ onClose }: { onClose: () => void }) {
+function BuyCreditsModal({
+  onClose,
+  onSelectProduct,
+}: {
+  onClose: () => void;
+  onSelectProduct: (priceId: string, productName: string) => void;
+}) {
   const [products, setProducts] = useState<CreditProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  const [purchasing, setPurchasing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,24 +50,6 @@ function BuyCreditsModal({ onClose }: { onClose: () => void }) {
       .then((d) => { setProducts(d.data ?? []); setLoading(false); })
       .catch(() => { setError("Failed to load credit packs"); setLoading(false); });
   }, []);
-
-  const handleBuy = async (priceId: string) => {
-    setPurchasing(priceId);
-    setError(null);
-    try {
-      const res = await fetch("/api/credits/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to start checkout");
-      if (data.url) window.location.href = data.url;
-    } catch (err: any) {
-      setError(err.message);
-      setPurchasing(null);
-    }
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
@@ -93,29 +81,27 @@ function BuyCreditsModal({ onClose }: { onClose: () => void }) {
           {products.map((p) => {
             const credits = parseInt(p.product_metadata?.credits ?? "0");
             const price = p.unit_amount / 100;
-            const isPurchasing = purchasing === p.price_id;
+            const isRecurring = p.product_metadata?.interval === "month" || p.product_name?.toLowerCase().includes("month");
             return (
               <div key={p.price_id} className="border border-border/60 rounded-xl p-4 hover:border-primary/50 hover:bg-primary/5 transition-all">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <p className="text-sm font-semibold text-foreground">{p.product_name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{credits.toLocaleString()} AI credits</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {credits > 0 ? `${credits.toLocaleString()} AI credits` : p.product_description}
+                    </p>
                   </div>
-                  <span className="text-lg font-bold text-primary">${price.toFixed(2)}</span>
+                  <div className="text-right">
+                    <span className="text-lg font-bold text-primary">${price.toFixed(0)}</span>
+                    {isRecurring && <p className="text-[10px] text-muted-foreground">/month</p>}
+                  </div>
                 </div>
                 <button
-                  onClick={() => handleBuy(p.price_id)}
-                  disabled={!!purchasing}
-                  className="w-full bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  onClick={() => onSelectProduct(p.price_id, p.product_name)}
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
-                  {isPurchasing ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>
-                      <ShoppingCart className="w-4 h-4" />
-                      Buy Now
-                    </>
-                  )}
+                  <ShoppingCart className="w-4 h-4" />
+                  Subscribe & Pay
                 </button>
               </div>
             );
@@ -123,7 +109,7 @@ function BuyCreditsModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <p className="text-xs text-muted-foreground text-center mt-4">
-          Secure checkout powered by Stripe
+          Your card never leaves this site — secured by Stripe
         </p>
       </div>
     </div>
@@ -196,6 +182,7 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
   const [newProjectDesc, setNewProjectDesc] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [showBuyCredits, setShowBuyCredits] = useState(false);
+  const [embeddedCheckout, setEmbeddedCheckout] = useState<{ priceId: string; productName: string } | null>(null);
   const { user, logout } = useAuth() as any;
 
   const { data: projects, isLoading } = useListProjects();
@@ -428,7 +415,22 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
       </div>
 
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
-      {showBuyCredits && <BuyCreditsModal onClose={() => setShowBuyCredits(false)} />}
+      {showBuyCredits && (
+        <BuyCreditsModal
+          onClose={() => setShowBuyCredits(false)}
+          onSelectProduct={(priceId, productName) => {
+            setShowBuyCredits(false);
+            setEmbeddedCheckout({ priceId, productName });
+          }}
+        />
+      )}
+      {embeddedCheckout && (
+        <EmbeddedCheckoutModal
+          priceId={embeddedCheckout.priceId}
+          productName={embeddedCheckout.productName}
+          onClose={() => setEmbeddedCheckout(null)}
+        />
+      )}
     </div>
   );
 

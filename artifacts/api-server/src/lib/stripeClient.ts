@@ -52,21 +52,25 @@ class ProxiedStripe {
 
   async createCheckoutSession(params: {
     customer: string;
-    payment_method_types: string[];
+    payment_method_types?: string[];
     line_items: Array<{ price: string; quantity: number }>;
     mode: string;
-    success_url: string;
-    cancel_url: string;
+    success_url?: string;
+    cancel_url?: string;
+    return_url?: string;
+    ui_mode?: string;
     metadata?: Record<string, string>;
     subscription_data?: { metadata?: Record<string, string> };
   }) {
     const body: Record<string, any> = {
       customer: params.customer,
       mode: params.mode,
-      success_url: params.success_url,
-      cancel_url: params.cancel_url,
     };
-    params.payment_method_types.forEach((t, i) => {
+    if (params.ui_mode) body.ui_mode = params.ui_mode;
+    if (params.success_url) body.success_url = params.success_url;
+    if (params.cancel_url) body.cancel_url = params.cancel_url;
+    if (params.return_url) body.return_url = params.return_url;
+    (params.payment_method_types ?? ["card"]).forEach((t, i) => {
       body[`payment_method_types[${i}]`] = t;
     });
     params.line_items.forEach((item, i) => {

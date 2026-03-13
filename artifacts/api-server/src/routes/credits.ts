@@ -230,13 +230,19 @@ router.get("/credits/subscription", async (req, res) => {
   }
 });
 
+// Expose publishable key so the frontend can initialise Stripe.js
+router.get("/credits/config", (req, res) => {
+  const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY ?? null;
+  res.json({ publishableKey });
+});
+
 router.post("/credits/checkout", async (req, res) => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
-  const { priceId } = req.body;
+  const { priceId, embedded } = req.body;
   if (!priceId) {
     res.status(400).json({ error: "priceId is required" });
     return;
@@ -264,26 +270,44 @@ router.post("/credits/checkout", async (req, res) => {
     const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? "localhost";
     const baseUrl = `https://${domain}`;
 
-    // Detect if this is a subscription price
     const isSubscription = priceId === MONTHLY_PRICE_ID;
     const mode = isSubscription ? "subscription" : "payment";
 
-    const sessionParams: any = {
-      customer: customerId,
-      payment_method_types: ["card"],
-      line_items: [{ price: priceId, quantity: 1 }],
-      mode,
-      success_url: `${baseUrl}/?payment=success`,
-      cancel_url: `${baseUrl}/?payment=cancelled`,
-      metadata: { userId },
-    };
+    let sessionParams: any;
+
+    if (embedded) {
+      // Embedded checkout — stays on our site; no payment_method_types allowed
+      sessionParams = {
+        customer: customerId,
+        line_items: [{ price: priceId, quantity: 1 }],
+        mode,
+        ui_mode: "embedded",
+        return_url: `${baseUrl}/?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+        metadata: { userId },
+      };
+    } else {
+      sessionParams = {
+        customer: customerId,
+        payment_method_types: ["card"],
+        line_items: [{ price: priceId, quantity: 1 }],
+        mode,
+        success_url: `${baseUrl}/?payment=success`,
+        cancel_url: `${baseUrl}/?payment=cancelled`,
+        metadata: { userId },
+      };
+    }
 
     if (isSubscription) {
       sessionParams.subscription_data = { metadata: { userId } };
     }
 
     const session = await stripe.createCheckoutSession(sessionParams);
-    res.json({ url: session.url });
+
+    if (embedded) {
+      res.json({ clientSecret: session.client_secret });
+    } else {
+      res.json({ url: session.url });
+    }
   } catch (err: any) {
     console.error("Checkout error:", err);
     res.status(500).json({ error: "Failed to create checkout session" });
