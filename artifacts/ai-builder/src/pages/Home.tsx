@@ -4,8 +4,8 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
 import { useListProjects, useCreateProject } from "@workspace/api-client-react";
 import {
-  Plus, Rocket, Globe, ExternalLink, Copy, Check,
-  Loader2, Clock, FolderGit2, ChevronRight, Zap,
+  Plus, Rocket, ExternalLink, Copy, Check,
+  Loader2, Clock, FolderGit2, Zap, ArrowUpRight, ChevronRight,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -17,13 +17,14 @@ interface Deployment {
 
 function useProjectDeployment(projectId: number) {
   const [deployment, setDeployment] = useState<Deployment | null | undefined>(undefined);
-  useEffect(() => {
+  const refetch = () => {
     fetch(`/api/projects/${projectId}/deployment`)
       .then((r) => (r.ok ? r.json() : null))
       .then(setDeployment)
       .catch(() => setDeployment(null));
-  }, [projectId]);
-  return deployment;
+  };
+  useEffect(() => { refetch(); }, [projectId]);
+  return { deployment, refetch };
 }
 
 function LiveUrlBadge({ deployment }: { deployment: Deployment }) {
@@ -41,9 +42,9 @@ function LiveUrlBadge({ deployment }: { deployment: Deployment }) {
   };
 
   return (
-    <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-lg px-2.5 py-1.5">
+    <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-lg px-2.5 py-1.5 flex-1 min-w-0">
       <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
-      <span className="text-xs text-green-400 font-medium truncate max-w-[160px]">{url}</span>
+      <span className="text-xs text-green-400 font-medium truncate flex-1">{url}</span>
       <button
         onClick={copy}
         title="Copy URL"
@@ -67,7 +68,19 @@ function LiveUrlBadge({ deployment }: { deployment: Deployment }) {
 
 function ProjectCard({ project }: { project: any }) {
   const [, setLocation] = useLocation();
-  const deployment = useProjectDeployment(project.id);
+  const { deployment, refetch } = useProjectDeployment(project.id);
+  const [deploying, setDeploying] = useState(false);
+
+  const handleDeploy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeploying(true);
+    try {
+      await fetch(`/api/projects/${project.id}/deploy`, { method: "POST" });
+      await refetch();
+    } finally {
+      setDeploying(false);
+    }
+  };
 
   return (
     <div
@@ -94,16 +107,33 @@ function ProjectCard({ project }: { project: any }) {
         <span>Updated {formatDistanceToNow(new Date(project.updatedAt ?? project.createdAt), { addSuffix: true })}</span>
       </div>
 
-      <div className="min-h-[32px] flex items-center">
+      <div className="flex items-center gap-2 mt-1">
         {deployment === undefined ? (
           <div className="h-7 w-32 bg-muted/40 rounded-lg animate-pulse" />
         ) : deployment?.isLive ? (
-          <LiveUrlBadge deployment={deployment} />
+          <>
+            <LiveUrlBadge deployment={deployment} />
+            <button
+              onClick={handleDeploy}
+              disabled={deploying}
+              title="Re-publish"
+              className="shrink-0 p-1.5 rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {deploying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpRight className="w-3.5 h-3.5" />}
+            </button>
+          </>
         ) : (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
-            <Globe className="w-3 h-3" />
-            <span>Not published</span>
-          </div>
+          <button
+            onClick={handleDeploy}
+            disabled={deploying}
+            className="flex items-center gap-1.5 bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/40 text-primary text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
+          >
+            {deploying ? (
+              <><Loader2 className="w-3 h-3 animate-spin" /> Publishing…</>
+            ) : (
+              <><Rocket className="w-3 h-3" /> Publish</>
+            )}
+          </button>
         )}
       </div>
     </div>
