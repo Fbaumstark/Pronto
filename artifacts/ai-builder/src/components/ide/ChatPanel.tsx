@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X } from "lucide-react";
+import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, Zap } from "lucide-react";
 import { useListProjectMessages } from "@workspace/api-client-react";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import ReactMarkdown from "react-markdown";
@@ -41,7 +41,7 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: messages, isLoading } = useListProjectMessages(projectId);
-  const { sendMessage, isStreaming, streamingContent, fileUpdateVersion, stopStream, error } = useChatStream(projectId);
+  const { sendMessage, isStreaming, streamingContent, fileUpdateVersion, stopStream, error, lastUsage } = useChatStream(projectId);
 
   const scrollToBottom = () => {
     if (scrollRef.current) {
@@ -206,6 +206,26 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
                         <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                       </div>
                     </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Usage summary — shown after each completed generation */}
+            {!isStreaming && lastUsage && (
+              <div className="flex justify-center animate-fade-in">
+                <div className="inline-flex items-center gap-2.5 bg-muted/40 border border-border/50 rounded-xl px-3.5 py-2 text-[11px] text-muted-foreground">
+                  <Zap className="w-3 h-3 text-primary shrink-0" />
+                  <span className="font-medium text-foreground">
+                    {lastUsage.unlimited ? "Unlimited" : `${lastUsage.creditsCharged.toLocaleString()} credits`}
+                  </span>
+                  <span className="text-border">·</span>
+                  <span>{(lastUsage.inputTokens / 1000).toFixed(1)}K&thinsp;in&ensp;/&ensp;{(lastUsage.outputTokens / 1000).toFixed(1)}K&thinsp;out</span>
+                  {!lastUsage.unlimited && lastUsage.creditsRemaining !== null && (
+                    <>
+                      <span className="text-border">·</span>
+                      <span>{lastUsage.creditsRemaining.toLocaleString()} left</span>
+                    </>
                   )}
                 </div>
               </div>

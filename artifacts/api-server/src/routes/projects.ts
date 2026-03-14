@@ -427,7 +427,14 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     }
 
     const newBalance = unlimited ? null : (userId ? await getUserBalance(userId) : null);
-    res.write(`data: ${JSON.stringify({ type: "done", creditsRemaining: newBalance, unlimited })}\n\n`);
+    res.write(`data: ${JSON.stringify({
+      type: "done",
+      creditsRemaining: newBalance,
+      unlimited,
+      creditsCharged: creditsUsed,
+      inputTokens,
+      outputTokens,
+    })}\n\n`);
     res.end();
   } catch (err) {
     console.error("Streaming error:", err);
