@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useListProjects, useCreateProject, useDeleteProject } from "@workspace/api-client-react";
-import { Plus, FolderGit2, Trash2, Loader2, X, LogOut, Coins, ChevronDown, ShoppingCart, Zap, BarChart2, Key } from "lucide-react";
+import { Plus, FolderGit2, Trash2, Loader2, X, LogOut, Coins, ChevronDown, ShoppingCart, Zap, BarChart2, Key, HelpCircle } from "lucide-react";
+import { HelpChatWidget } from "@/components/help/HelpChatWidget";
 import { ProntoLogoMark, ProntoTagline } from "@/components/ProntoLogo";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@workspace/replit-auth-web";
@@ -181,6 +182,7 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
   const [newProjectDesc, setNewProjectDesc] = useState("");
   const [showBuyCredits, setShowBuyCredits] = useState(false);
   const [embeddedCheckout, setEmbeddedCheckout] = useState<{ priceId: string; productName: string } | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
   const { user, logout } = useAuth() as any;
 
   const { data: projects, isLoading } = useListProjects();
@@ -399,6 +401,19 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
           </button>
         </Link>
 
+        <button
+          onClick={() => setShowHelp((v) => !v)}
+          className={`w-full flex items-center gap-3 px-2 py-2 rounded-xl cursor-pointer transition-colors text-left ${showHelp ? "bg-primary/10 text-primary" : "hover:bg-muted/50"}`}
+        >
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${showHelp ? "bg-primary/15" : "bg-muted"}`}>
+            <HelpCircle className={`w-4 h-4 ${showHelp ? "text-primary" : "text-muted-foreground"}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">Help</p>
+            <p className="text-xs text-muted-foreground truncate">Ask the Pronto assistant</p>
+          </div>
+        </button>
+
         <div className="flex items-center gap-3 px-2 py-2 rounded-xl">
           {user?.profileImageUrl ? (
             <img src={user.profileImageUrl} alt="avatar" className="w-8 h-8 rounded-full shrink-0 object-cover" />
@@ -422,6 +437,8 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
           </button>
         </div>
       </div>
+
+      <HelpChatWidget open={showHelp} onClose={() => setShowHelp(false)} />
 
       {showBuyCredits && (
         <BuyCreditsModal

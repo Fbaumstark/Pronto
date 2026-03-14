@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Loader2, Zap, ChevronDown } from "lucide-react";
+import { X, Send, Loader2, Zap } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface Message {
@@ -59,19 +59,21 @@ function MessageBubble({ msg }: { msg: Message }) {
   );
 }
 
-export function HelpChatWidget() {
-  const [open, setOpen] = useState(false);
+interface HelpChatWidgetProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export function HelpChatWidget({ open, onClose }: HelpChatWidgetProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [unread, setUnread] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (open) {
-      setUnread(false);
       setTimeout(() => inputRef.current?.focus(), 150);
     }
   }, [open]);
@@ -153,7 +155,6 @@ export function HelpChatWidget() {
         prev.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m))
       );
       setLoading(false);
-      if (!open) setUnread(true);
     }
   };
 
@@ -167,16 +168,25 @@ export function HelpChatWidget() {
   const isEmpty = messages.length === 0;
 
   return (
-    <>
-      {/* Chat panel */}
-      <AnimatePresence>
-        {open && (
+    <AnimatePresence>
+      {open && (
+        <>
+          {/* Mobile backdrop */}
           <motion.div
-            initial={{ opacity: 0, x: 12, scale: 0.97 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 md:hidden bg-black/40"
+            onClick={onClose}
+          />
+
+          {/* Chat panel — sits just to the right of the sidebar on desktop */}
+          <motion.div
+            initial={{ opacity: 0, x: -10, scale: 0.97 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 12, scale: 0.97 }}
+            exit={{ opacity: 0, x: -10, scale: 0.97 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className="fixed top-1/2 -translate-y-1/2 right-[72px] z-50 w-[320px] md:w-[360px] flex flex-col bg-card border border-border/70 rounded-2xl shadow-2xl overflow-hidden"
+            className="fixed bottom-4 left-4 md:left-[260px] z-50 w-[calc(100vw-32px)] md:w-[340px] flex flex-col bg-card border border-border/70 rounded-2xl shadow-2xl overflow-hidden"
             style={{ maxHeight: "min(520px, calc(100vh - 32px))" }}
           >
             {/* Header */}
@@ -191,10 +201,10 @@ export function HelpChatWidget() {
                 </div>
               </div>
               <button
-                onClick={() => setOpen(false)}
+                onClick={onClose}
                 className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-foreground transition-colors"
               >
-                <ChevronDown className="w-4 h-4" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -210,7 +220,6 @@ export function HelpChatWidget() {
                       Hi! I'm Pronto's help assistant. I can answer questions about building, publishing, credits, custom domains, and more. What do you need help with?
                     </div>
                   </div>
-
                   <div className="space-y-1.5 pt-1">
                     <p className="text-[10px] text-muted-foreground px-1">Suggested questions</p>
                     {SUGGESTIONS.map((s) => (
@@ -261,35 +270,8 @@ export function HelpChatWidget() {
               </p>
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Floating trigger button */}
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className={`fixed top-1/2 -translate-y-1/2 right-4 z-50 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ${
-          open
-            ? "bg-muted border border-border text-foreground"
-            : "bg-primary hover:bg-primary/90 text-primary-foreground"
-        }`}
-      >
-        <AnimatePresence mode="wait">
-          {open ? (
-            <motion.div key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}>
-              <X className="w-5 h-5" />
-            </motion.div>
-          ) : (
-            <motion.div key="open" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}>
-              <MessageCircle className="w-5 h-5" />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Unread dot */}
-        {unread && !open && (
-          <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-background" />
-        )}
-      </button>
-    </>
+        </>
+      )}
+    </AnimatePresence>
   );
 }
