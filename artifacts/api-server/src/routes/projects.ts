@@ -34,7 +34,7 @@ const ANTHROPIC_PRICING: Record<string, { input: number; output: number }> = {
 
 const DEFAULT_PRICING = { input: 3.00, output: 15.00 };
 const CREDIT_VALUE_USD = 10 / 500_000;
-const MARKUP = 10;
+const MARKUP = 5;
 
 function calculateCredits(model: string, inputTokens: number, outputTokens: number): number {
   const pricing = ANTHROPIC_PRICING[model] ?? DEFAULT_PRICING;

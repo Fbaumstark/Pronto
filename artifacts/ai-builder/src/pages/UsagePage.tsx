@@ -243,7 +243,7 @@ export function UsagePage() {
                   {
                     icon: <Bot className="w-4 h-4 text-violet-400" />,
                     label: "AI generation",
-                    sub: "10× Anthropic cost · scales with prompt & response size",
+                    sub: "5× Anthropic cost · scales with prompt & response size",
                     cost: null as number | null,
                   },
                   {
