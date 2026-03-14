@@ -36,21 +36,30 @@ export function ProntoLogoMark({ size = 32, className = "" }: ProntoLogoProps) {
       <rect width="40" height="40" rx="10" fill={`url(#${id}-bg)`} />
       <rect width="40" height="40" rx="10" fill={`url(#${id}-shine)`} />
 
+      {/* Handle cap */}
+      <circle cx="8.5" cy="33.5" r="2.8" fill="white" fillOpacity="0.35" />
+
+      {/* Wand rod */}
+      <line x1="8.5" y1="33.5" x2="26" y2="16" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeOpacity="0.92" />
+
+      {/* Glow halo at wand tip */}
+      <circle cx="26" cy="16" r="5.5" fill="#fbbf24" fillOpacity="0.18" filter={`url(#${id}-glow)`} />
+
+      {/* Main 4-pointed sparkle star at wand tip */}
       <path
-        d="M13 8 L13 28 L18.5 22.5 L21.5 30 L25.5 28.5 L22.5 21 L29 21 Z"
-        fill="white"
-        fillOpacity="0.95"
+        d="M26 11 L27.5 14.5 L31 16 L27.5 17.5 L26 21 L24.5 17.5 L21 16 L24.5 14.5 Z"
+        fill="#fde68a"
+        filter={`url(#${id}-glow)`}
+      />
+      <path
+        d="M26 12.5 L27 15 L29.5 16 L27 17 L26 19.5 L25 17 L22.5 16 L25 15 Z"
+        fill="#fef3c7"
       />
 
-      <path
-        d="M13 5.5 L14.3 8.5 L13 11.5 L11.7 8.5 Z
-           M13 5.5 L16 6.8 L19 5.5 L16 4.2 Z
-           M13 11.5 L10 10.2 L7 11.5 L10 12.8 Z
-           M19 5.5 L17.7 8.5 L19 11.5 L20.3 8.5 Z"
-        fill="#fbbf24"
-        filter={`url(#${id}-glow)`}
-        opacity="0.95"
-      />
+      {/* Small scattered sparkle dots */}
+      <circle cx="34" cy="9"  r="1.5" fill="#fde68a" fillOpacity="0.75" />
+      <circle cx="33" cy="25" r="1"   fill="#fde68a" fillOpacity="0.55" />
+      <circle cx="15" cy="10" r="0.9" fill="#fde68a" fillOpacity="0.45" />
     </svg>
   );
 }
