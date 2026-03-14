@@ -316,26 +316,30 @@ function ProjectCard({ project }: { project: any }) {
           <span>Updated {formatDistanceToNow(new Date(project.updatedAt ?? project.createdAt), { addSuffix: true })}</span>
         </div>
 
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex flex-col gap-2 mt-1">
           {deployment === undefined ? (
             <div className="h-7 w-32 bg-muted/40 rounded-lg animate-pulse" />
           ) : deployment?.isLive ? (
             <>
-              <LiveUrlBadge deployment={deployment} />
+              {/* Row 1: live URL + re-publish */}
+              <div className="flex items-center gap-2">
+                <LiveUrlBadge deployment={deployment} />
+                <button
+                  onClick={handleDeploy}
+                  disabled={deploying}
+                  title="Re-publish"
+                  className="shrink-0 p-1.5 rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {deploying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpRight className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              {/* Row 2: link to custom domain */}
               <button
                 onClick={(e) => { e.stopPropagation(); setShowDomain(true); }}
-                title="Connect custom domain"
-                className="shrink-0 p-1.5 rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                className="self-start flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-primary border border-border/50 hover:border-primary/40 bg-muted/30 hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-all"
               >
                 <Globe className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={handleDeploy}
-                disabled={deploying}
-                title="Re-publish"
-                className="shrink-0 p-1.5 rounded-lg bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {deploying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpRight className="w-3.5 h-3.5" />}
+                {deployment.customDomain ? `${deployment.customDomain}` : "Link to domain"}
               </button>
             </>
           ) : (
@@ -353,16 +357,6 @@ function ProjectCard({ project }: { project: any }) {
           )}
         </div>
 
-        {/* Custom domain chip — shown if one is set */}
-        {deployment?.isLive && deployment.customDomain && (
-          <div
-            onClick={(e) => { e.stopPropagation(); setShowDomain(true); }}
-            className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-          >
-            <Globe className="w-3 h-3 shrink-0" />
-            <span className="truncate">{deployment.customDomain}</span>
-          </div>
-        )}
       </div>
 
       {showDomain && deployment?.isLive && (
