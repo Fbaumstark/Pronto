@@ -5,7 +5,7 @@ import {
   ArrowRight, Star
 } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
-import { ProntoLogoMark } from "@/components/ProntoLogo";
+import { ProntoLogoMark, ProntoTagline, ProntoNoCodingBadge } from "@/components/ProntoLogo";
 
 type Mode = "login" | "register";
 
@@ -215,7 +215,10 @@ export function LoginPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <ProntoLogoMark size={36} />
-            <span className="font-display font-bold text-lg text-foreground">Pronto</span>
+            <div>
+              <span className="font-display font-bold text-lg text-foreground leading-none">Pronto</span>
+              <ProntoTagline className="mt-0.5" />
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={() => { setShowSignInModal(true); }}
@@ -246,6 +249,16 @@ export function LoginPage() {
             <p className="text-lg text-muted-foreground leading-relaxed max-w-lg">
               Describe what you want in plain English. Pronto's AI writes every line of code, shows you a live preview, and deploys it — all in seconds.
             </p>
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium tracking-wide">
+                <span className="text-muted-foreground">idea</span>
+                <span className="text-[#12b8bf] mx-1.5">→</span>
+                <span className="text-muted-foreground">words</span>
+                <span className="text-[#12b8bf] mx-1.5">→</span>
+                <span className="text-muted-foreground">website / app</span>
+              </p>
+              <ProntoNoCodingBadge className="text-xl sm:text-2xl" />
+            </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <button onClick={scrollToSignup}
                 className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 py-3 rounded-xl text-base transition-all shadow-lg shadow-primary/25 hover:scale-[1.02]">
@@ -499,10 +512,12 @@ export function LoginPage() {
       {/* ── FOOTER ── */}
       <footer className="border-t border-border/50 py-8 bg-muted/20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <ProntoLogoMark size={24} />
-            <span className="font-semibold text-foreground">Pronto</span>
-            <span>— Build software at the speed of thought.</span>
+            <div>
+              <span className="font-semibold text-foreground leading-none block">Pronto</span>
+              <ProntoTagline />
+            </div>
           </div>
           <div className="flex items-center gap-4 text-xs">
             <div className="flex items-center gap-2">
@@ -521,7 +536,10 @@ export function LoginPage() {
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center gap-2">
                 <ProntoLogoMark size={28} />
-                <span className="font-bold text-foreground">Sign in to Pronto</span>
+                <div>
+                  <span className="font-bold text-foreground leading-none block">Sign in to Pronto</span>
+                  <ProntoTagline />
+                </div>
               </div>
               <button onClick={() => setShowSignInModal(false)} className="text-muted-foreground hover:text-foreground text-lg leading-none">✕</button>
             </div>

@@ -5,7 +5,7 @@ import {
   Users, DollarSign, Zap, ArrowLeft, TrendingUp,
   ChevronUp, ChevronDown, Search, RefreshCw
 } from "lucide-react";
-import { ProntoLogoMark } from "@/components/ProntoLogo";
+import { ProntoLogoMark, ProntoTagline } from "@/components/ProntoLogo";
 import { formatDistanceToNow, format } from "date-fns";
 
 interface AdminUser {
@@ -124,8 +124,12 @@ export function AdminPage() {
           </button>
           <ProntoLogoMark size={28} />
           <div>
-            <h1 className="text-sm font-bold text-foreground leading-none">Admin Dashboard</h1>
-            <p className="text-[11px] text-muted-foreground mt-0.5">{user?.email}</p>
+            <span className="text-sm font-bold text-foreground leading-none block">Pronto</span>
+            <ProntoTagline />
+          </div>
+          <div className="h-4 border-l border-border/50 mx-1" />
+          <div>
+            <span className="text-xs font-semibold text-muted-foreground">Admin</span>
           </div>
           <div className="ml-auto">
             <button

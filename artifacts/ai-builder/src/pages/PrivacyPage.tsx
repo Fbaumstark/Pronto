@@ -1,17 +1,27 @@
 import { useLocation } from "wouter";
 import { ArrowLeft, Lock } from "lucide-react";
+import { ProntoLogoMark, ProntoTagline } from "@/components/ProntoLogo";
 
 export default function PrivacyPage() {
   const [, setLocation] = useLocation();
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <div className="sticky top-0 z-10 border-b border-border/50 bg-background/90 backdrop-blur">
+        <div className="max-w-4xl mx-auto px-6 h-14 flex items-center gap-3">
+          <button
+            onClick={() => setLocation("/")}
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <ProntoLogoMark size={28} />
+          <div>
+            <span className="font-display font-bold text-sm text-foreground leading-none">Pronto</span>
+            <ProntoTagline className="mt-0.5" />
+          </div>
+        </div>
+      </div>
       <div className="max-w-4xl mx-auto px-6 py-12">
-        <button
-          onClick={() => setLocation("/")}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-10 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Pronto
-        </button>
 
         <div className="flex items-center gap-3 mb-2">
           <Lock className="w-7 h-7 text-primary" />

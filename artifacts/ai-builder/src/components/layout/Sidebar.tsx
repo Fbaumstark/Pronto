@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useListProjects, useCreateProject, useDeleteProject } from "@workspace/api-client-react";
 import { Plus, FolderGit2, Trash2, Loader2, X, Settings, LogOut, Coins, ChevronDown, ShoppingCart, Zap, BarChart2, Key } from "lucide-react";
-import { ProntoLogoMark } from "@/components/ProntoLogo";
+import { ProntoLogoMark, ProntoTagline } from "@/components/ProntoLogo";
 import { motion, AnimatePresence } from "framer-motion";
 import { SettingsModal } from "./SettingsModal";
 import { useAuth } from "@workspace/replit-auth-web";
@@ -238,7 +238,7 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
           </div>
           <div>
             <h1 className="font-display font-bold text-lg text-foreground tracking-tight">Pronto</h1>
-            <p className="text-xs text-muted-foreground font-medium">Workspace</p>
+            <ProntoTagline />
           </div>
         </Link>
         {isMobileDrawer && (

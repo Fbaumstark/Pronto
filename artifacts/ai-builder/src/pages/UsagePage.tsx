@@ -5,7 +5,7 @@ import {
   Gift, ShoppingCart, Check, ChevronRight, Info,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
-import { ProntoLogoMark } from "@/components/ProntoLogo";
+import { ProntoLogoMark, ProntoTagline } from "@/components/ProntoLogo";
 
 interface BreakdownItem {
   type: string;
@@ -151,7 +151,10 @@ export function UsagePage() {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <ProntoLogoMark size={26} />
-          <h1 className="text-sm font-bold text-foreground flex-1">Usage</h1>
+          <div className="flex-1">
+            <span className="text-sm font-bold text-foreground leading-none block">Pronto</span>
+            <ProntoTagline />
+          </div>
           <button
             onClick={load}
             disabled={loading}
