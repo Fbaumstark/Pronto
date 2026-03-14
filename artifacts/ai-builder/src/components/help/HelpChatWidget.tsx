@@ -176,7 +176,7 @@ export function HelpChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.97 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className="fixed bottom-20 right-4 z-50 w-[340px] sm:w-[380px] flex flex-col bg-card border border-border/70 rounded-2xl shadow-2xl overflow-hidden"
+            className="fixed bottom-32 sm:bottom-20 right-4 z-50 w-[340px] sm:w-[380px] flex flex-col bg-card border border-border/70 rounded-2xl shadow-2xl overflow-hidden"
             style={{ maxHeight: "min(520px, calc(100vh - 100px))" }}
           >
             {/* Header */}
@@ -267,7 +267,7 @@ export function HelpChatWidget() {
       {/* Floating trigger button */}
       <button
         onClick={() => setOpen((o) => !o)}
-        className={`fixed bottom-4 right-4 z-50 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ${
+        className={`fixed bottom-[72px] sm:bottom-4 right-4 z-50 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ${
           open
             ? "bg-muted border border-border text-foreground"
             : "bg-primary hover:bg-primary/90 text-primary-foreground"
