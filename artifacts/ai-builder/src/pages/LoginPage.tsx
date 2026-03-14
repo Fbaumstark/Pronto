@@ -472,9 +472,12 @@ export function LoginPage() {
             <span className="font-semibold text-foreground">Pronto</span>
             <span>— Build software at the speed of thought.</span>
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <CreditCard className="w-3.5 h-3.5" />
-            Payments secured by Stripe
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-3.5 h-3.5" />
+              Payments secured by Stripe
+            </div>
+            <a href="/admin" className="opacity-30 hover:opacity-60 transition-opacity text-[10px]">admin</a>
           </div>
         </div>
       </footer>
