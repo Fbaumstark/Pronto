@@ -236,7 +236,7 @@ export function LoginPage() {
       {/* ── HERO ── */}
       <section className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-12 md:pt-24 md:pb-20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          <div className="space-y-6">
+          <div className="space-y-6 text-center lg:text-left">
             <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 text-sm text-primary font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
               50,000 free credits. No card required.
@@ -246,10 +246,10 @@ export function LoginPage() {
               <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-violet-400 to-accent">just words.</span>
             </h1>
-            <p className="text-lg text-muted-foreground leading-relaxed max-w-lg">
+            <p className="text-lg text-muted-foreground leading-relaxed max-w-lg mx-auto lg:mx-0">
               Describe what you want in plain English. Pronto's AI writes every line of code, shows you a live preview, and deploys it — all in seconds.
             </p>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col items-center lg:items-start gap-1">
               <p className="text-sm font-medium tracking-wide">
                 <span className="text-muted-foreground">idea</span>
                 <span className="text-[#12b8bf] mx-1.5">→</span>

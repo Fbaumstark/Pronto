@@ -6,23 +6,24 @@ interface ProntoLogoProps {
 export function ProntoLogoMark({ size = 32, className = "" }: ProntoLogoProps) {
   const id = "pronto-p";
 
-  // ── P shape geometry (viewBox 0 0 40 40) ────────────────────
-  // Stem   : x=6..16 (width 10), y=2..38
-  // Bowl   : center=(16,14.5), outerR=12.5, innerR=6.25
-  //          top y=2, bottom y=27, rightmost x=28.5
-  // Color split: x=16 (vertical), y=14.5 (horizontal), gap=1.5
-  // ────────────────────────────────────────────────────────────
+  // ── P shape geometry ──────────────────────────────────────────────────────
+  // viewBox : 0 0 40 40
+  // Stem    : x=5..15 (width 10), y=2..38
+  // Bowl    : center=(15,15), outerR=13, innerR=6.5
+  //           top y=2, bottom y=28, rightmost x=28
+  //
+  // Color-split lines:
+  //   Vertical   → x = 21.5  (midpoint between stem-edge x=15 and rightmost x=28)
+  //   Horizontal → y = 15    (bowl center)
+  //
+  // This gives navy+teal the LEFT side (stem + left arc)
+  //              blue+green the RIGHT arc accent
+  // ─────────────────────────────────────────────────────────────────────────
 
-  const outerP   = "M 6 2 L 16 2 A 12.5 12.5 0 1 1 16 27 L 16 38 L 6 38 Z";
-  const innerHole = "M 16 8.25 A 6.25 6.25 0 1 1 16 20.75 Z";
+  const outerP    = "M 5 2 L 15 2 A 13 13 0 1 1 15 28 L 15 38 L 5 38 Z";
+  const innerHole = "M 15 8.5 A 6.5 6.5 0 1 1 15 21.5 Z";
 
-  const halfGap = 0.75;
-
-  // Pre-computed rectangle bounds (with gaps between segments)
-  const navy  = { x: 6,     y: 2,     w: 9.25,  h: 11.75 };
-  const blue  = { x: 16.75, y: 2,     w: 11.75, h: 11.75 };
-  const green = { x: 16.75, y: 15.25, w: 11.75, h: 11.75 };
-  const teal  = { x: 6,     y: 15.25, w: 9.25,  h: 22.75 };
+  const g = 0.8; // half-gap — dark gap visible between segments
 
   return (
     <svg
@@ -41,14 +42,17 @@ export function ProntoLogoMark({ size = 32, className = "" }: ProntoLogoProps) {
       </defs>
 
       <g mask={`url(#${id}-mask)`}>
-        {/* Dark navy — upper stem */}
-        <rect x={navy.x}  y={navy.y}  width={navy.w}  height={navy.h}  fill="#0d1f5c" />
-        {/* Bright blue — upper bowl */}
-        <rect x={blue.x}  y={blue.y}  width={blue.w}  height={blue.h}  fill="#1e54d0" />
-        {/* Lime green — lower bowl */}
-        <rect x={green.x} y={green.y} width={green.w} height={green.h} fill="#6dc52c" />
-        {/* Teal/cyan — lower stem */}
-        <rect x={teal.x}  y={teal.y}  width={teal.w}  height={teal.h}  fill="#12b8bf" />
+        {/* Dark navy — upper-left (stem top + left arc of upper bowl) */}
+        <rect x={0}        y={0}      width={21.5 - g} height={15 - g}  fill="#0e2057" />
+
+        {/* Bright blue — upper-right arc (right accent of upper bowl) */}
+        <rect x={21.5 + g} y={0}      width={19}       height={15 - g}  fill="#1e54d0" />
+
+        {/* Lime green — lower-right arc (right accent of lower bowl) */}
+        <rect x={21.5 + g} y={15 + g} width={19}       height={25}      fill="#6dc52c" />
+
+        {/* Teal/cyan — lower-left (stem bottom + left arc of lower bowl) */}
+        <rect x={0}        y={15 + g} width={21.5 - g} height={25}      fill="#12b8bf" />
       </g>
     </svg>
   );
@@ -62,9 +66,19 @@ export function ProntoWordmark({ className = "" }: { className?: string }) {
   );
 }
 
-export function ProntoTagline({ className = "" }: { className?: string }) {
+export function ProntoTagline({
+  className = "",
+  center = false,
+}: {
+  className?: string;
+  center?: boolean;
+}) {
   return (
-    <p className={`text-xs font-medium tracking-wide ${className}`}>
+    <p
+      className={`text-xs font-medium tracking-wide whitespace-nowrap ${
+        center ? "text-center" : ""
+      } ${className}`}
+    >
       <span className="text-muted-foreground">idea</span>
       <span className="text-[#12b8bf] mx-1">→</span>
       <span className="text-muted-foreground">words</span>
