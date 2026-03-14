@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   Loader2, Mail, Lock, User, Check, Zap, ChevronDown,
   Rocket, History, Globe, Code2, MessageSquare, CreditCard,
-  ArrowRight, Star
+  ArrowRight, Star, Copy, ExternalLink, Send
 } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { ProntoLogoMark, ProntoTagline, ProntoNoCodingBadge } from "@/components/ProntoLogo";
@@ -349,31 +349,161 @@ export function LoginPage() {
             <h2 className="text-3xl md:text-4xl font-bold text-foreground">From idea to live app in minutes</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              { n: "1", img: "/landing/step-describe.png", title: "Describe your app", body: "Type what you want in plain English — 'a to-do list with drag and drop' or 'a landing page for my coffee shop'. No technical knowledge needed." },
-              { n: "2", img: "/landing/step-build.png", title: "Watch AI build it", body: "Pronto streams code in real time as the AI writes every file. You see the live preview update instantly as the app takes shape." },
-              { n: "3", img: "/landing/step-deploy.png", title: "Publish with one click", body: "Hit Deploy and your app gets a public URL — shareable with anyone. Add your own domain. No servers to manage, ever." },
-            ].map(({ n, img, title, body }) => (
-              <div key={n} className="relative group">
-                <div className="bg-card border border-border/60 rounded-2xl overflow-hidden h-full hover:border-primary/30 transition-colors">
-                  <div className="relative bg-muted/30 overflow-hidden">
-                    <img
-                      src={img}
-                      alt={title}
-                      className="w-full aspect-square object-cover group-hover:scale-105 transition-transform duration-500"
-                      loading="lazy"
-                    />
-                    <div className="absolute top-3 left-3 w-7 h-7 rounded-full bg-primary text-primary-foreground text-sm font-bold flex items-center justify-center shadow-lg">
-                      {n}
+
+            {/* Step 1 — Chat panel mockup */}
+            <div className="relative group">
+              <div className="bg-card border border-border/60 rounded-2xl overflow-hidden h-full hover:border-primary/30 transition-colors">
+                <div className="relative bg-[#0d0d1a] overflow-hidden">
+                  <div className="absolute top-3 left-3 z-10 w-7 h-7 rounded-full bg-primary text-primary-foreground text-sm font-bold flex items-center justify-center shadow-lg">1</div>
+                  {/* Chat interface mockup */}
+                  <div className="w-full aspect-square flex flex-col p-4 pt-12">
+                    {/* Panel header */}
+                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-white/8">
+                      <MessageSquare className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span className="text-[11px] text-muted-foreground font-medium">New chat</span>
+                    </div>
+                    {/* Chat messages */}
+                    <div className="flex-1 flex flex-col justify-end gap-2.5 overflow-hidden">
+                      <div className="self-start text-[10px] text-muted-foreground/60 pl-1">You</div>
+                      <div className="self-end bg-primary/20 border border-primary/30 rounded-2xl rounded-tr-sm px-3 py-2 text-[11px] text-foreground max-w-[90%] leading-relaxed">
+                        Build me a restaurant menu with categories and prices
+                      </div>
+                      <div className="self-start text-[10px] text-muted-foreground/60 pl-1">Pronto AI</div>
+                      <div className="self-start bg-white/5 border border-white/8 rounded-2xl rounded-tl-sm px-3 py-2 text-[11px] text-muted-foreground max-w-[90%] leading-relaxed">
+                        Creating your restaurant menu app — adding categories, items, and a clean layout…
+                      </div>
+                      <div className="self-start flex items-center gap-1.5 pl-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse [animation-delay:150ms]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse [animation-delay:300ms]" />
+                      </div>
+                    </div>
+                    {/* Input */}
+                    <div className="mt-3 flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                      <span className="flex-1 text-[11px] text-muted-foreground/40 font-mono">Describe your app…</span>
+                      <div className="w-5 h-5 rounded-md bg-primary flex items-center justify-center shrink-0">
+                        <Send className="w-2.5 h-2.5 text-white" />
+                      </div>
                     </div>
                   </div>
-                  <div className="p-5">
-                    <h3 className="font-semibold text-foreground mb-2">{title}</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
-                  </div>
+                </div>
+                <div className="p-5">
+                  <h3 className="font-semibold text-foreground mb-2">Describe your app</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">Type what you want in plain English — "a to-do list with drag and drop" or "a landing page for my coffee shop". No technical knowledge needed.</p>
                 </div>
               </div>
-            ))}
+            </div>
+
+            {/* Step 2 — Code editor mockup */}
+            <div className="relative group">
+              <div className="bg-card border border-border/60 rounded-2xl overflow-hidden h-full hover:border-primary/30 transition-colors">
+                <div className="relative bg-[#1e1e2e] overflow-hidden">
+                  <div className="absolute top-3 left-3 z-10 w-7 h-7 rounded-full bg-primary text-primary-foreground text-sm font-bold flex items-center justify-center shadow-lg">2</div>
+                  {/* Code editor mockup */}
+                  <div className="w-full aspect-square flex flex-col font-mono text-[10px]">
+                    {/* Tab bar */}
+                    <div className="flex items-center bg-[#141424] border-b border-white/8 px-2 pt-2 shrink-0">
+                      <div className="w-7" />{/* spacer for badge */}
+                      <div className="flex items-center gap-1.5 bg-[#1e1e2e] px-3 py-1.5 rounded-t-md text-foreground border-t border-x border-white/10">
+                        <Code2 className="w-2.5 h-2.5 text-blue-400" />
+                        index.html
+                      </div>
+                      <div className="ml-auto mr-2 flex items-center gap-1 text-violet-400 text-[9px] pb-1">
+                        <Zap className="w-2.5 h-2.5" />
+                        AI writing…
+                      </div>
+                    </div>
+                    {/* Code lines */}
+                    <div className="flex-1 p-3 leading-5 overflow-hidden">
+                      {[
+                        { n: 1, code: "<!DOCTYPE html>", cls: "text-blue-400" },
+                        { n: 2, code: '<html lang="en">', cls: "text-blue-400" },
+                        { n: 3, code: "  <head>", cls: "text-blue-400" },
+                        { n: 4, code: "    <title>Menu</title>", cls: "text-amber-300" },
+                        { n: 5, code: "    <style>", cls: "text-blue-400" },
+                        { n: 6, code: "      body { margin: 0;", cls: "text-green-400" },
+                        { n: 7, code: "        font-family: sans-serif; }", cls: "text-green-400" },
+                        { n: 8, code: "      .menu-item {", cls: "text-green-400" },
+                        { n: 9, code: "        display: flex;", cls: "text-green-400" },
+                        { n: 10, code: "        padding: 1rem;", cls: "text-green-400" },
+                        { n: 11, code: "        border-bottom:", cls: "text-green-400" },
+                        { n: 12, code: "          1px solid #eee; }", cls: "text-green-400" },
+                      ].map(({ n, code, cls }) => (
+                        <div key={n} className="flex gap-2.5">
+                          <span className="text-white/20 shrink-0 w-3 text-right">{n}</span>
+                          <span className={cls}>{code}</span>
+                        </div>
+                      ))}
+                      <div className="flex gap-2.5">
+                        <span className="text-white/20 shrink-0 w-3 text-right">13</span>
+                        <span className="text-green-400">    <span className="inline-block w-1.5 h-3 bg-primary/80 animate-pulse align-middle" /></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-5">
+                  <h3 className="font-semibold text-foreground mb-2">Watch AI build it</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">Pronto streams code in real time as the AI writes every file. You see the live preview update instantly as the app takes shape.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Step 3 — Deploy panel mockup */}
+            <div className="relative group">
+              <div className="bg-card border border-border/60 rounded-2xl overflow-hidden h-full hover:border-primary/30 transition-colors">
+                <div className="relative bg-[#0d0d1a] overflow-hidden">
+                  <div className="absolute top-3 left-3 z-10 w-7 h-7 rounded-full bg-primary text-primary-foreground text-sm font-bold flex items-center justify-center shadow-lg">3</div>
+                  {/* Deploy panel mockup */}
+                  <div className="w-full aspect-square flex flex-col p-4 pt-12">
+                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-white/8">
+                      <Rocket className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span className="text-[11px] text-muted-foreground font-medium">Deploy</span>
+                    </div>
+                    <div className="flex-1 flex flex-col gap-3">
+                      {/* Deploy button */}
+                      <div className="w-full bg-primary rounded-xl py-2.5 flex items-center justify-center gap-2">
+                        <Rocket className="w-3.5 h-3.5 text-white" />
+                        <span className="text-[11px] font-bold text-white">Deploy Project</span>
+                      </div>
+                      <div className="border-t border-white/8" />
+                      {/* Live URL */}
+                      <div className="space-y-1.5">
+                        <div className="text-[9px] text-muted-foreground/60 font-semibold uppercase tracking-wider">Live URL</div>
+                        <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-lg px-2.5 py-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
+                          <span className="text-[10px] text-green-400 font-mono flex-1 truncate">pronto.app/p/rest-menu-xk2</span>
+                          <Copy className="w-2.5 h-2.5 text-green-400/60 shrink-0" />
+                        </div>
+                      </div>
+                      {/* Custom domain */}
+                      <div className="space-y-1.5">
+                        <div className="text-[9px] text-muted-foreground/60 font-semibold uppercase tracking-wider">Custom Domain</div>
+                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-2.5 py-2">
+                          <Globe className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+                          <span className="text-[10px] text-muted-foreground/40 font-mono flex-1">yourdomain.com</span>
+                        </div>
+                      </div>
+                      {/* Stats row */}
+                      <div className="mt-auto flex items-center gap-3 pt-2 border-t border-white/8">
+                        <div className="flex items-center gap-1 text-[9px] text-muted-foreground/60">
+                          <ExternalLink className="w-2.5 h-2.5" />
+                          Deployed 2s ago
+                        </div>
+                        <div className="flex items-center gap-1 text-[9px] text-green-400/70">
+                          <Check className="w-2.5 h-2.5" />
+                          HTTPS active
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-5">
+                  <h3 className="font-semibold text-foreground mb-2">Publish with one click</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">Hit Deploy and your app gets a public URL — shareable with anyone. Add your own domain. No servers to manage, ever.</p>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
