@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { ProntoLogoMark } from "@/components/ProntoLogo";
+import { FluidBackground } from "@/components/FluidBackground";
 
 type Mode = "login" | "register";
 
@@ -182,12 +183,7 @@ export function LoginPage() {
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
 
-      {/* Background glows */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-primary/8 rounded-full blur-[120px]" />
-        <div className="absolute top-1/2 -right-40 w-[500px] h-[500px] bg-accent/6 rounded-full blur-[120px]" />
-        <div className="absolute -bottom-40 left-1/3 w-[400px] h-[400px] bg-violet-500/5 rounded-full blur-[100px]" />
-      </div>
+      <FluidBackground />
 
       {/* ── NAVBAR ── */}
       <nav className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
