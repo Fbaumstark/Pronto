@@ -194,7 +194,11 @@ export function UsagePage() {
                     <p className="text-sm font-bold text-foreground mb-1">
                       {data.unlimited ? "Unlimited credits" : `${balance.toLocaleString()} credits remaining`}
                     </p>
-                    {!data.unlimited && (
+                    {data.unlimited ? (
+                      <p className="text-xs text-muted-foreground">
+                        Your account has unrestricted access — AI generation, deployments, and all features are free.
+                      </p>
+                    ) : (
                       <>
                         <div className="w-full bg-muted rounded-full h-1.5 mb-2">
                           <div
@@ -205,34 +209,36 @@ export function UsagePage() {
                         <p className="text-xs text-muted-foreground">
                           {((balance / FREE_CREDITS) * 100).toFixed(1)}% of {FREE_CREDITS.toLocaleString()} base credits remaining
                         </p>
+                        <button
+                          onClick={() => setLocation("/?buy=true")}
+                          className="mt-2 text-xs text-primary hover:underline font-medium"
+                        >
+                          Buy more credits →
+                        </button>
                       </>
                     )}
-                    <button
-                      onClick={() => setLocation("/?buy=true")}
-                      className="mt-2 text-xs text-primary hover:underline font-medium"
-                    >
-                      Buy more credits →
-                    </button>
                   </div>
                 </div>
 
-                {/* This month */}
-                <div className="bg-card border border-border/60 rounded-2xl p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium mb-1">Credits used this month</p>
-                      <p className="text-2xl font-bold text-foreground">
-                        {data.thisMonthUsed.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        ≈ {creditValue(data.thisMonthUsed)} in AI compute
-                      </p>
-                    </div>
-                    <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
-                      <TrendingDown className="w-5 h-5 text-orange-400" />
+                {/* This month — only shown for non-unlimited users */}
+                {!data.unlimited && (
+                  <div className="bg-card border border-border/60 rounded-2xl p-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-muted-foreground font-medium mb-1">Credits used this month</p>
+                        <p className="text-2xl font-bold text-foreground">
+                          {data.thisMonthUsed.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          ≈ {creditValue(data.thisMonthUsed)} in AI compute
+                        </p>
+                      </div>
+                      <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
+                        <TrendingDown className="w-5 h-5 text-orange-400" />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </section>
 
@@ -291,7 +297,7 @@ export function UsagePage() {
             </section>
 
             {/* ── RESOURCE BREAKDOWN ── */}
-            {data.breakdown.length > 0 && (
+            {!data.unlimited && data.breakdown.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
                   All-time resource usage
@@ -324,6 +330,7 @@ export function UsagePage() {
             )}
 
             {/* ── TRANSACTION HISTORY ── */}
+            {!data.unlimited && (
             <section>
               <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
                 Transaction history
@@ -372,16 +379,19 @@ export function UsagePage() {
                 </div>
               )}
             </section>
+            )}
 
             {/* ── FOOTER NOTE ── */}
-            <div className="flex items-start gap-2 text-xs text-muted-foreground pb-4">
-              <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              <p>
-                Credit costs reflect the compute resources used to generate your apps and host them publicly.
-                1,000 credits ≈ {creditValue(1000)} in value.
-                Subscription adds 1,250,000 credits/month for $25. Auto top-up adds 1,250,000 more credits for $25 when your balance reaches zero.
-              </p>
-            </div>
+            {!data.unlimited && (
+              <div className="flex items-start gap-2 text-xs text-muted-foreground pb-4">
+                <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <p>
+                  Credit costs reflect the compute resources used to generate your apps and host them publicly.
+                  1,000 credits ≈ {creditValue(1000)} in value.
+                  Subscription adds 1,250,000 credits/month for $25. Auto top-up adds 1,250,000 more credits for $25 when your balance reaches zero.
+                </p>
+              </div>
+            )}
           </>
         ) : null}
       </div>

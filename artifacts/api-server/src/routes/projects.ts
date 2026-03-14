@@ -88,8 +88,9 @@ router.get("/projects", async (req, res) => {
 router.post("/projects", async (req, res) => {
   const body = CreateProjectBody.parse(req.body);
   const userId = req.isAuthenticated() ? req.user.id : null;
+  const creatorEmail = req.isAuthenticated() ? req.user.email : null;
 
-  if (userId) await ensureFreeCredits(userId);
+  if (userId && !isUnlimitedUser(creatorEmail)) await ensureFreeCredits(userId);
 
   const [project] = await db
     .insert(projectsTable)
