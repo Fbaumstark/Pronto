@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useListProjects, useCreateProject, useDeleteProject } from "@workspace/api-client-react";
-import { Plus, FolderGit2, Trash2, Loader2, X, Settings, LogOut, Coins, ChevronDown, ShoppingCart, Zap, BarChart2, Key } from "lucide-react";
+import { Plus, FolderGit2, Trash2, Loader2, X, LogOut, Coins, ChevronDown, ShoppingCart, Zap, BarChart2, Key } from "lucide-react";
 import { ProntoLogoMark, ProntoTagline } from "@/components/ProntoLogo";
 import { motion, AnimatePresence } from "framer-motion";
-import { SettingsModal } from "./SettingsModal";
 import { useAuth } from "@workspace/replit-auth-web";
 import { TemplatePicker } from "@/components/templates/TemplatePicker";
 import { EmbeddedCheckoutModal } from "@/components/payments/EmbeddedCheckoutModal";
@@ -180,7 +179,6 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
   const [templates, setTemplates] = useState<Template[]>([]);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDesc, setNewProjectDesc] = useState("");
-  const [showSettings, setShowSettings] = useState(false);
   const [showBuyCredits, setShowBuyCredits] = useState(false);
   const [embeddedCheckout, setEmbeddedCheckout] = useState<{ priceId: string; productName: string } | null>(null);
   const { user, logout } = useAuth() as any;
@@ -401,19 +399,6 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
           </button>
         </Link>
 
-        <button
-          onClick={() => setShowSettings(true)}
-          className="w-full flex items-center gap-3 px-2 py-2 hover:bg-muted/50 rounded-xl cursor-pointer transition-colors text-left"
-        >
-          <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
-            <Settings className="w-4 h-4 text-muted-foreground" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">AI Provider</p>
-            <p className="text-xs text-muted-foreground truncate">Configure API settings</p>
-          </div>
-        </button>
-
         <div className="flex items-center gap-3 px-2 py-2 rounded-xl">
           {user?.profileImageUrl ? (
             <img src={user.profileImageUrl} alt="avatar" className="w-8 h-8 rounded-full shrink-0 object-cover" />
@@ -438,7 +423,6 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
         </div>
       </div>
 
-      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
       {showBuyCredits && (
         <BuyCreditsModal
           onClose={() => setShowBuyCredits(false)}
