@@ -83,7 +83,7 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
     e.preventDefault();
     if ((!input.trim() && !attachedImage) || isStreaming) return;
     const text = input.trim() || "Make changes based on this image.";
-    sendMessage(text, attachedImage ? { imageData: attachedImage.imageData, imageMimeType: attachedImage.imageMimeType } : undefined);
+    sendMessage(text, attachedImage ? { imageData: attachedImage.imageData, imageMimeType: attachedImage.imageMimeType, previewUrl: attachedImage.previewUrl } : undefined);
     setInput("");
     localStorage.removeItem(draftKey);
     clearImage();

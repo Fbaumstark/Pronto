@@ -18,7 +18,7 @@ export function useChatStream(projectId: number) {
     }
   };
 
-  const sendMessage = async (content: string, image?: { imageData: string; imageMimeType: string }) => {
+  const sendMessage = async (content: string, image?: { imageData: string; imageMimeType: string; previewUrl?: string }) => {
     setIsStreaming(true);
     setStreamingContent('');
     setError(null);
@@ -34,15 +34,25 @@ export function useChatStream(projectId: number) {
         role: 'user',
         content,
         createdAt: new Date().toISOString(),
-        _imagePreview: image?.imageData ? `data:${image.imageMimeType};base64,${image.imageData}` : undefined,
+        // Use the blob previewUrl only — never embed base64 in React state
+        _imagePreview: image?.previewUrl ?? undefined,
       },
     ]);
+
+    // Serialize the body (captures imageData/imageMimeType into the string),
+    // then immediately wipe the local references so the large base64 isn't
+    // held in memory any longer than needed.
+    const requestBody = JSON.stringify({ content, imageData: image?.imageData, imageMimeType: image?.imageMimeType });
+    if (image) {
+      (image as any).imageData = null;
+      (image as any).imageMimeType = null;
+    }
 
     try {
       const res = await fetch(`/api/projects/${projectId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, ...image }),
+        body: requestBody,
         signal: abortControllerRef.current.signal,
       });
 
