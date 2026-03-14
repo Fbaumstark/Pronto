@@ -10,6 +10,7 @@ import {
   templatesTable,
   usersTable,
   aiUsageLogTable,
+  userSecretsTable,
 } from "@workspace/db";
 import {
   CreateProjectBody,
@@ -18,6 +19,7 @@ import {
 } from "@workspace/api-zod";
 import { getAIClient } from "../lib/ai-client";
 import { isUnlimitedUser } from "../lib/admin";
+import { getUserDecryptedSecrets, injectEnvScript } from "./secrets";
 import { ensureFreeCredits, triggerAutoTopup } from "./credits";
 
 const MIN_CREDITS_TO_START = 500;
@@ -208,20 +210,31 @@ router.post("/projects/:id/messages", async (req, res) => {
     content: body.content,
   });
 
-  const [files, existingMessages] = await Promise.all([
+  const [files, existingMessages, userSecretNames] = await Promise.all([
     db.select().from(projectFilesTable).where(eq(projectFilesTable.projectId, projectId)),
     db.select().from(projectMessagesTable).where(eq(projectMessagesTable.projectId, projectId)).orderBy(projectMessagesTable.createdAt),
+    // Load only the NAMES of the user's secrets — values are never passed to Claude
+    userId
+      ? db.select({ name: userSecretsTable.name }).from(userSecretsTable).where(eq(userSecretsTable.userId, userId))
+      : Promise.resolve([]),
   ]);
 
   const filesContext = files
     .map((f) => `=== ${f.filename} (${f.language}) ===\n${f.content}`)
     .join("\n\n");
 
+  const secretsSection = userSecretNames.length > 0
+    ? `\nUSER SECRETS (names only — values are injected at runtime, NEVER hardcode them):
+${userSecretNames.map((s) => `- ${s.name}`).join("\n")}
+
+When your code needs to use one of these secrets, access it via window.__env.SECRET_NAME (e.g. window.__env.${userSecretNames[0].name}). The actual values are injected automatically at runtime — you will never see or write them.\n`
+    : "";
+
   const systemPrompt = `You are an AI coding assistant that builds web applications by modifying project files.
 
 Current project: "${project.name}"
 Description: "${project.description}"
-
+${secretsSection}
 Current files:
 ${filesContext}
 
@@ -240,6 +253,7 @@ CRITICAL RULES:
 - Use efficient, compact CSS (shorthand properties, no redundant rules)
 - Never apologise or explain that you ran out of space — just write complete files
 - If a feature requires many lines, simplify it rather than truncating
+- NEVER hardcode secret values in generated code — always use window.__env.SECRET_NAME
 
 CONTENT POLICY — STRICTLY ENFORCED:
 You are running inside Pronto, an AI-powered app builder. You must REFUSE to build any application that would directly compete with Pronto itself. This includes but is not limited to:
@@ -460,10 +474,11 @@ All other types of applications are welcome: landing pages, dashboards, games, p
 
 router.get("/projects/:id/preview", async (req, res) => {
   const projectId = parseInt(req.params.id);
-  const files = await db
-    .select()
-    .from(projectFilesTable)
-    .where(eq(projectFilesTable.projectId, projectId));
+
+  const [files, project] = await Promise.all([
+    db.select().from(projectFilesTable).where(eq(projectFilesTable.projectId, projectId)),
+    db.select({ userId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)),
+  ]);
 
   const indexFile = files.find((f) => f.filename === "index.html") ?? files[0];
   if (!indexFile) {
@@ -471,8 +486,17 @@ router.get("/projects/:id/preview", async (req, res) => {
     return;
   }
 
+  // Inject user secrets at serve-time — values never appear in stored code
+  let html = indexFile.content;
+  const ownerId = project[0]?.userId;
+  if (ownerId) {
+    const env = await getUserDecryptedSecrets(ownerId);
+    html = injectEnvScript(html, env);
+  }
+
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(indexFile.content);
+  res.setHeader("Cache-Control", "no-store"); // prevent browser caching stale secrets
+  res.send(html);
 });
 
 router.put("/projects/:projectId/files/:fileId", async (req, res) => {

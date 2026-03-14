@@ -4,6 +4,7 @@ import { db, deploymentsTable, projectFilesTable, projectsTable, creditLedgerTab
 import { nanoid } from "nanoid";
 import { getUserBalance, triggerAutoTopup } from "./credits";
 import { isUnlimitedUser } from "../lib/admin";
+import { getUserDecryptedSecrets, injectEnvScript } from "./secrets";
 
 const DEPLOY_COST = 10000;   // first deploy
 const REDEPLOY_COST = 2000;  // push update to existing deployment
@@ -141,10 +142,10 @@ async function servePublishedApp(slug: string, res: any) {
     return;
   }
 
-  const files = await db
-    .select()
-    .from(projectFilesTable)
-    .where(eq(projectFilesTable.projectId, deployment.projectId));
+  const [files, project] = await Promise.all([
+    db.select().from(projectFilesTable).where(eq(projectFilesTable.projectId, deployment.projectId)),
+    db.select({ userId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, deployment.projectId)),
+  ]);
 
   const indexFile = files.find((f) => f.filename === "index.html") ?? files[0];
   if (!indexFile) {
@@ -152,8 +153,17 @@ async function servePublishedApp(slug: string, res: any) {
     return;
   }
 
+  // Inject owner's secrets at serve-time — values are never stored in the project files
+  let html = indexFile.content;
+  const ownerId = project[0]?.userId;
+  if (ownerId) {
+    const env = await getUserDecryptedSecrets(ownerId);
+    html = injectEnvScript(html, env);
+  }
+
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(indexFile.content);
+  res.setHeader("Cache-Control", "no-store"); // prevent browsers caching pages with injected secrets
+  res.send(html);
 }
 
 // Clean branded URL: /api/p/pronto-xxxxxxxx
