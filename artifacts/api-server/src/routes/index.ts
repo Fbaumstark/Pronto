@@ -9,6 +9,7 @@ import deploymentsRouter from "./deployments";
 import creditsRouter from "./credits";
 import helpRouter from "./help";
 import adminRouter from "./admin";
+import secretsRouter from "./secrets";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(deploymentsRouter);
 router.use(creditsRouter);
 router.use(projectsRouter);
 router.use(settingsRouter);
+router.use(secretsRouter);
 
 export default router;

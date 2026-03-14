@@ -7,3 +7,4 @@ export * from "./templates";
 export * from "./project_versions";
 export * from "./deployments";
 export * from "./credits";
+export * from "./secrets";
