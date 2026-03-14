@@ -253,8 +253,41 @@ export function LoginPage() {
         </div>
       </section>
 
-      {/* ── HOW IT WORKS ── */}
+      {/* ── PRODUCT SCREENSHOT ── */}
       <section className="border-t border-border/50 py-16 md:py-24 bg-muted/20">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-10">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">See it in action</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground">Your AI co-developer, always on</h2>
+            <p className="text-muted-foreground mt-3 max-w-xl mx-auto">Chat on the left, live code in the center, instant preview on the right — everything synced in real time.</p>
+          </div>
+          {/* Browser chrome frame */}
+          <div className="relative mx-auto max-w-4xl">
+            {/* Glow behind */}
+            <div className="absolute inset-0 -m-4 bg-primary/10 rounded-3xl blur-2xl pointer-events-none" />
+            <div className="relative bg-[#1a1a2e] border border-white/10 rounded-2xl overflow-hidden shadow-2xl shadow-black/50">
+              {/* Fake browser bar */}
+              <div className="flex items-center gap-2 px-4 py-3 bg-[#141424] border-b border-white/8">
+                <span className="w-3 h-3 rounded-full bg-red-500/70" />
+                <span className="w-3 h-3 rounded-full bg-yellow-500/70" />
+                <span className="w-3 h-3 rounded-full bg-green-500/70" />
+                <div className="flex-1 mx-4 bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-[11px] text-white/30 font-mono">
+                  pronto-app.replit.app
+                </div>
+              </div>
+              <img
+                src="/landing/hero-screenshot.png"
+                alt="Pronto builder interface showing AI chat, code editor and live preview"
+                className="w-full h-auto block"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ── */}
+      <section className="border-t border-border/50 py-16 md:py-24">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">How it works</p>
@@ -262,18 +295,27 @@ export function LoginPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { n: "1", emoji: "💬", title: "Describe your app", body: "Type what you want in plain English — 'a to-do list with drag and drop' or 'a landing page for my coffee shop'. No technical knowledge needed." },
-              { n: "2", emoji: "⚡", title: "Watch AI build it", body: "Pronto streams code in real time as the AI writes every file. You see the live preview update instantly as the app takes shape." },
-              { n: "3", emoji: "🚀", title: "Publish with one click", body: "Hit Deploy and your app gets a public URL — shareable with anyone. Add your own domain. No servers to manage, ever." },
-            ].map(({ n, emoji, title, body }) => (
-              <div key={n} className="relative">
-                <div className="bg-card border border-border/60 rounded-2xl p-6 h-full">
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 text-primary text-sm font-bold flex items-center justify-center">{n}</span>
-                    <span className="text-2xl">{emoji}</span>
+              { n: "1", img: "/landing/step-describe.png", title: "Describe your app", body: "Type what you want in plain English — 'a to-do list with drag and drop' or 'a landing page for my coffee shop'. No technical knowledge needed." },
+              { n: "2", img: "/landing/step-build.png", title: "Watch AI build it", body: "Pronto streams code in real time as the AI writes every file. You see the live preview update instantly as the app takes shape." },
+              { n: "3", img: "/landing/step-deploy.png", title: "Publish with one click", body: "Hit Deploy and your app gets a public URL — shareable with anyone. Add your own domain. No servers to manage, ever." },
+            ].map(({ n, img, title, body }) => (
+              <div key={n} className="relative group">
+                <div className="bg-card border border-border/60 rounded-2xl overflow-hidden h-full hover:border-primary/30 transition-colors">
+                  <div className="relative bg-muted/30 overflow-hidden">
+                    <img
+                      src={img}
+                      alt={title}
+                      className="w-full aspect-square object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                    />
+                    <div className="absolute top-3 left-3 w-7 h-7 rounded-full bg-primary text-primary-foreground text-sm font-bold flex items-center justify-center shadow-lg">
+                      {n}
+                    </div>
                   </div>
-                  <h3 className="font-semibold text-foreground mb-2">{title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+                  <div className="p-5">
+                    <h3 className="font-semibold text-foreground mb-2">{title}</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+                  </div>
                 </div>
               </div>
             ))}
