@@ -6,6 +6,7 @@ export function useChatStream(projectId: number) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [outOfCredits, setOutOfCredits] = useState(false);
   const [fileUpdateVersion, setFileUpdateVersion] = useState(0);
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -22,6 +23,7 @@ export function useChatStream(projectId: number) {
     setIsStreaming(true);
     setStreamingContent('');
     setError(null);
+    setOutOfCredits(false);
 
     abortControllerRef.current = new AbortController();
 
@@ -57,6 +59,11 @@ export function useChatStream(projectId: number) {
       });
 
       if (!res.ok || !res.body) {
+        if (res.status === 402) {
+          setOutOfCredits(true);
+          setIsStreaming(false);
+          return;
+        }
         const errData = await res.json().catch(() => ({}));
         throw new Error((errData as any).error || 'Stream request failed');
       }
@@ -113,5 +120,5 @@ export function useChatStream(projectId: number) {
     }
   };
 
-  return { sendMessage, isStreaming, streamingContent, fileUpdateVersion, error, stopStream };
+  return { sendMessage, isStreaming, streamingContent, fileUpdateVersion, error, outOfCredits, clearOutOfCredits: () => setOutOfCredits(false), stopStream };
 }

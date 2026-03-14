@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useListProjects, useCreateProject, useDeleteProject } from "@workspace/api-client-react";
-import { Plus, FolderGit2, Trash2, Loader2, X, LogOut, Coins, ChevronDown, ShoppingCart, Zap, BarChart2, Key, HelpCircle } from "lucide-react";
+import { Plus, FolderGit2, Trash2, Loader2, X, LogOut, Coins, ChevronDown, Zap, BarChart2, Key, HelpCircle } from "lucide-react";
+import { BuyCreditsModal } from "@/components/payments/BuyCreditsModal";
 import { HelpChatWidget } from "@/components/help/HelpChatWidget";
 import { ProntoLogoMark, ProntoTagline } from "@/components/ProntoLogo";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@workspace/replit-auth-web";
 import { TemplatePicker } from "@/components/templates/TemplatePicker";
-import { EmbeddedCheckoutModal } from "@/components/payments/EmbeddedCheckoutModal";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -21,99 +21,6 @@ interface Template {
   description: string;
   category: string;
   emoji: string;
-}
-
-interface CreditProduct {
-  product_id: string;
-  product_name: string;
-  product_description: string;
-  product_metadata: Record<string, string>;
-  price_id: string;
-  unit_amount: number;
-  currency: string;
-}
-
-function BuyCreditsModal({
-  onClose,
-  onSelectProduct,
-}: {
-  onClose: () => void;
-  onSelectProduct: (priceId: string, productName: string) => void;
-}) {
-  const [products, setProducts] = useState<CreditProduct[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/credits/products")
-      .then((r) => r.json())
-      .then((d) => { setProducts(d.data ?? []); setLoading(false); })
-      .catch(() => { setError("Failed to load credit packs"); setLoading(false); });
-  }, []);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-card border border-border rounded-2xl shadow-2xl p-6 w-80 max-w-full" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold text-foreground">Buy Credits</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {loading && (
-          <div className="flex justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-primary" />
-          </div>
-        )}
-
-        {error && (
-          <div className="text-sm text-destructive text-center py-4">{error}</div>
-        )}
-
-        {!loading && !error && products.length === 0 && (
-          <div className="text-sm text-muted-foreground text-center py-4">
-            No credit packs available yet.
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {products.map((p) => {
-            const credits = parseInt(p.product_metadata?.credits ?? "0");
-            const price = p.unit_amount / 100;
-            const isRecurring = p.product_metadata?.interval === "month" || p.product_name?.toLowerCase().includes("month");
-            return (
-              <div key={p.price_id} className="border border-border/60 rounded-xl p-4 hover:border-primary/50 hover:bg-primary/5 transition-all">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{p.product_name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {credits > 0 ? `${credits.toLocaleString()} AI credits` : p.product_description}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-lg font-bold text-primary">${price.toFixed(0)}</span>
-                    {isRecurring && <p className="text-[10px] text-muted-foreground">/month</p>}
-                  </div>
-                </div>
-                <button
-                  onClick={() => onSelectProduct(p.price_id, p.product_name)}
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                  Subscribe & Pay
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        <p className="text-xs text-muted-foreground text-center mt-4">
-          Your card never leaves this site — secured by Stripe
-        </p>
-      </div>
-    </div>
-  );
 }
 
 function CreditsDisplay({ onBuyCredits }: { onBuyCredits: () => void }) {
@@ -181,7 +88,6 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDesc, setNewProjectDesc] = useState("");
   const [showBuyCredits, setShowBuyCredits] = useState(false);
-  const [embeddedCheckout, setEmbeddedCheckout] = useState<{ priceId: string; productName: string } | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const { user, logout } = useAuth() as any;
 
@@ -441,20 +347,7 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
       <HelpChatWidget open={showHelp} onClose={() => setShowHelp(false)} />
 
       {showBuyCredits && (
-        <BuyCreditsModal
-          onClose={() => setShowBuyCredits(false)}
-          onSelectProduct={(priceId, productName) => {
-            setShowBuyCredits(false);
-            setEmbeddedCheckout({ priceId, productName });
-          }}
-        />
-      )}
-      {embeddedCheckout && (
-        <EmbeddedCheckoutModal
-          priceId={embeddedCheckout.priceId}
-          productName={embeddedCheckout.productName}
-          onClose={() => setEmbeddedCheckout(null)}
-        />
+        <BuyCreditsModal onClose={() => setShowBuyCredits(false)} />
       )}
     </div>
   );

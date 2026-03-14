@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, CheckCircle2, FileCode2 } from "lucide-react";
+import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, CheckCircle2, FileCode2, Zap } from "lucide-react";
 import { useListProjectMessages } from "@workspace/api-client-react";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import ReactMarkdown from "react-markdown";
 import { cleanResponseForDisplay, cleanStreamingForDisplay } from "@/lib/clean-response";
+import { BuyCreditsModal } from "@/components/payments/BuyCreditsModal";
 
 async function fileToBase64(file: File): Promise<{ imageData: string; imageMimeType: string }> {
   return new Promise((resolve, reject) => {
@@ -41,7 +42,8 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: messages, isLoading } = useListProjectMessages(projectId);
-  const { sendMessage, isStreaming, streamingContent, fileUpdateVersion, stopStream, error } = useChatStream(projectId);
+  const { sendMessage, isStreaming, streamingContent, fileUpdateVersion, stopStream, error, outOfCredits, clearOutOfCredits } = useChatStream(projectId);
+  const [showBuyModal, setShowBuyModal] = useState(false);
 
   const scrollToBottom = () => {
     if (scrollRef.current) {
@@ -211,7 +213,23 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
               </div>
             )}
 
-            {error && (
+            {outOfCredits && (
+              <div className="mx-auto max-w-sm bg-amber-500/10 border border-amber-500/40 rounded-xl px-4 py-4 text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  <p className="text-sm font-semibold text-amber-300">You've run out of credits</p>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">Add credits to keep building your app.</p>
+                <button
+                  onClick={() => setShowBuyModal(true)}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
+                >
+                  Buy Credits
+                </button>
+              </div>
+            )}
+
+            {error && !outOfCredits && (
               <div className="mx-auto max-w-sm bg-destructive/10 border border-destructive/30 rounded-xl px-4 py-3 text-sm text-destructive text-center">
                 {error}
               </div>
@@ -297,6 +315,14 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
           )}
         </form>
       </div>
+
+      {showBuyModal && (
+        <BuyCreditsModal
+          heading="Out of Credits"
+          subheading="You've used all your free credits. Add more to keep building."
+          onClose={() => { setShowBuyModal(false); clearOutOfCredits(); }}
+        />
+      )}
     </div>
   );
 }
