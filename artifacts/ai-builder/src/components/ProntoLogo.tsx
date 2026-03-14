@@ -16,12 +16,12 @@ export function ProntoLogoMark({ size = 32, className = "" }: ProntoLogoProps) {
     >
       <defs>
         <linearGradient id={`${id}-bg`} x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#1d4ed8" />
-          <stop offset="55%" stopColor="#4f46e5" />
-          <stop offset="100%" stopColor="#7c3aed" />
+          <stop offset="0%" stopColor="#0f172a" />
+          <stop offset="60%" stopColor="#1e3a8a" />
+          <stop offset="100%" stopColor="#1d4ed8" />
         </linearGradient>
-        <radialGradient id={`${id}-shine`} cx="30%" cy="20%" r="60%">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.18" />
+        <radialGradient id={`${id}-shine`} cx="25%" cy="20%" r="55%">
+          <stop offset="0%" stopColor="#93c5fd" stopOpacity="0.15" />
           <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
         </radialGradient>
         <filter id={`${id}-glow`} x="-60%" y="-60%" width="220%" height="220%">
@@ -36,47 +36,47 @@ export function ProntoLogoMark({ size = 32, className = "" }: ProntoLogoProps) {
       <rect width="40" height="40" rx="10" fill={`url(#${id}-bg)`} />
       <rect width="40" height="40" rx="10" fill={`url(#${id}-shine)`} />
 
-      {/* ── Wizard hat cone ── */}
+      {/* ── Wizard hat — large & centered ── */}
       <path
-        d="M16 6 L26 21 L6 21 Z"
+        d="M19 4 L31 25 L7 25 Z"
         fill="white"
-        fillOpacity="0.92"
+        fillOpacity="0.96"
       />
 
       {/* Hat band */}
-      <rect x="6.5" y="19.5" width="19" height="2.8" rx="1" fill="#a5b4fc" fillOpacity="0.55" />
+      <rect x="7.5" y="23" width="23.5" height="3.2" rx="1" fill="#60a5fa" fillOpacity="0.5" />
 
       {/* Hat brim */}
-      <ellipse cx="16" cy="22" rx="12" ry="2.8" fill="white" fillOpacity="0.78" />
+      <ellipse cx="19" cy="26.5" rx="15" ry="3.5" fill="white" fillOpacity="0.85" />
 
-      {/* Small star on hat */}
+      {/* ── Wand from brim-right to upper-right corner ── */}
+      <line x1="32" y1="26" x2="37" y2="14" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.9" />
+
+      {/* Wand tip glow halo */}
+      <circle cx="37" cy="13" r="5" fill="#fbbf24" fillOpacity="0.22" filter={`url(#${id}-glow)`} />
+
+      {/* Big sparkle — 4-pointed star at wand tip */}
       <path
-        d="M14 11.5 L14.7 13.3 L16.6 13.3 L15.1 14.4 L15.7 16.2 L14 15.1 L12.3 16.2 L12.9 14.4 L11.4 13.3 L13.3 13.3 Z"
-        fill="#fbbf24"
-        fillOpacity="0.85"
-      />
-
-      {/* ── Wand (from hat brim right, angling upper-right) ── */}
-      <line x1="26" y1="21" x2="34.5" y2="12" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeOpacity="0.88" />
-
-      {/* Wand tip glow */}
-      <circle cx="34.5" cy="12" r="4.5" fill="#fbbf24" fillOpacity="0.2" filter={`url(#${id}-glow)`} />
-
-      {/* Sparkle 4-pointed star at wand tip */}
-      <path
-        d="M34.5 7.5 L35.7 11 L39 12 L35.7 13 L34.5 16.5 L33.3 13 L30 12 L33.3 11 Z"
+        d="M37 8 L38.4 11.6 L40 13 L38.4 14.4 L37 18 L35.6 14.4 L32 13 L35.6 11.6 Z"
         fill="#fde68a"
         filter={`url(#${id}-glow)`}
       />
       <path
-        d="M34.5 9 L35.4 11.2 L37.5 12 L35.4 12.8 L34.5 15 L33.6 12.8 L31.5 12 L33.6 11.2 Z"
+        d="M37 10 L38 12.2 L40 13 L38 13.8 L37 16 L36 13.8 L34 13 L36 12.2 Z"
         fill="#fef9c3"
       />
 
-      {/* Small floating sparkle dots */}
-      <circle cx="7"  cy="30" r="1.2" fill="#fde68a" fillOpacity="0.55" />
-      <circle cx="28" cy="7"  r="1"   fill="#fde68a" fillOpacity="0.6"  />
-      <circle cx="22" cy="30" r="0.8" fill="#fde68a" fillOpacity="0.45" />
+      {/* Small gold star on hat cone */}
+      <path
+        d="M17 13 L17.6 14.9 L19.5 14.9 L18 16 L18.5 17.9 L17 16.8 L15.5 17.9 L16 16 L14.5 14.9 L16.4 14.9 Z"
+        fill="#fbbf24"
+        fillOpacity="0.9"
+      />
+
+      {/* Floating sparkle dots */}
+      <circle cx="6"  cy="15" r="1.3" fill="#fde68a" fillOpacity="0.6" />
+      <circle cx="10" cy="32" r="1"   fill="#fde68a" fillOpacity="0.5" />
+      <circle cx="27" cy="9"  r="0.9" fill="#fde68a" fillOpacity="0.55" />
     </svg>
   );
 }
