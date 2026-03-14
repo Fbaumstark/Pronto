@@ -2,20 +2,11 @@ import { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListProjectMessagesQueryKey } from '@workspace/api-client-react';
 
-export interface UsageSummary {
-  creditsCharged: number;
-  creditsRemaining: number | null;
-  unlimited: boolean;
-  inputTokens: number;
-  outputTokens: number;
-}
-
 export function useChatStream(projectId: number) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [fileUpdateVersion, setFileUpdateVersion] = useState(0);
-  const [lastUsage, setLastUsage] = useState<UsageSummary | null>(null);
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -98,16 +89,6 @@ export function useChatStream(projectId: number) {
               setFileUpdateVersion((v) => v + 1);
             }
 
-            if (data.type === 'done') {
-              setLastUsage({
-                creditsCharged: data.creditsCharged ?? 0,
-                creditsRemaining: data.creditsRemaining ?? null,
-                unlimited: data.unlimited ?? false,
-                inputTokens: data.inputTokens ?? 0,
-                outputTokens: data.outputTokens ?? 0,
-              });
-            }
-
             if (data.type === 'error') {
               setError(data.error || 'An error occurred');
             }
@@ -132,5 +113,5 @@ export function useChatStream(projectId: number) {
     }
   };
 
-  return { sendMessage, isStreaming, streamingContent, fileUpdateVersion, error, stopStream, lastUsage };
+  return { sendMessage, isStreaming, streamingContent, fileUpdateVersion, error, stopStream };
 }

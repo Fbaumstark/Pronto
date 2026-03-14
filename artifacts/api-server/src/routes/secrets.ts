@@ -7,19 +7,9 @@ import crypto from "crypto";
 const router = Router();
 
 const ALGO = "aes-256-cbc";
-const DEFAULT_KEY = "pronto-default-enc-key-32-chars!";
 
 function getKey(): Buffer {
-  const raw = process.env.ENCRYPTION_KEY;
-  if (!raw || raw === DEFAULT_KEY) {
-    // Warn once on first use rather than crashing so existing dev environments
-    // keep working, but make it unmissable in logs.
-    console.warn(
-      "[SECURITY] ENCRYPTION_KEY is not set or is using the insecure default. " +
-      "Set a strong random ENCRYPTION_KEY environment secret before going to production."
-    );
-    return crypto.createHash("sha256").update(DEFAULT_KEY).digest();
-  }
+  const raw = process.env.ENCRYPTION_KEY ?? "pronto-default-enc-key-32-chars!";
   return crypto.createHash("sha256").update(raw).digest();
 }
 
@@ -30,7 +20,7 @@ function encrypt(plaintext: string): string {
   return iv.toString("hex") + ":" + encrypted.toString("hex");
 }
 
-export function decrypt(ciphertext: string): string {
+function decrypt(ciphertext: string): string {
   const [ivHex, encHex] = ciphertext.split(":");
   const iv = Buffer.from(ivHex, "hex");
   const encrypted = Buffer.from(encHex, "hex");
@@ -43,62 +33,29 @@ function maskValue(decrypted: string): string {
   return decrypted.slice(0, 4) + "••••••••" + decrypted.slice(-4);
 }
 
-/**
- * Server-side only helper — returns a plain-text key→value map for a user's
- * secrets so they can be injected at runtime into preview/deployed HTML.
- * Never expose the return value over the network.
- */
-export async function getUserDecryptedSecrets(userId: string): Promise<Record<string, string>> {
-  const rows = await db
-    .select()
-    .from(userSecretsTable)
-    .where(eq(userSecretsTable.userId, userId));
-
-  const env: Record<string, string> = {};
-  for (const r of rows) {
-    try { env[r.name] = decrypt(r.encryptedValue); } catch {}
-  }
-  return env;
-}
-
-/**
- * Injects a <script>window.__env = {...}</script> block into an HTML string
- * so the running app can access secrets via window.__env.MY_SECRET.
- * Values are never stored in the file — they are injected fresh at each serve.
- */
-export function injectEnvScript(html: string, env: Record<string, string>): string {
-  if (Object.keys(env).length === 0) return html;
-  const safeJson = JSON.stringify(env).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
-  const script = `<script>window.__env=Object.freeze(${safeJson});</script>`;
-  // Prefer injecting right before </head>; fall back to start of <body>; or prepend.
-  if (html.includes("</head>")) return html.replace("</head>", `${script}</head>`);
-  if (html.includes("<body>"))  return html.replace("<body>", `<body>${script}`);
-  return script + html;
-}
-
-// ── API routes ────────────────────────────────────────────────────────────────
-
 router.get("/api/secrets", async (req, res) => {
-  if (!req.session?.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
   const rows = await db
     .select()
     .from(userSecretsTable)
     .where(eq(userSecretsTable.userId, req.session.userId))
     .orderBy(userSecretsTable.createdAt);
 
-  res.json(rows.map((r) => ({
+  const result = rows.map((r) => ({
     id: r.id,
     name: r.name,
     maskedValue: maskValue(decrypt(r.encryptedValue)),
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
-  })));
+  }));
+
+  res.json(result);
 });
 
 router.post("/api/secrets", async (req, res) => {
-  if (!req.session?.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
   const { name, value } = req.body;
-  if (!name || !value) { res.status(400).json({ error: "name and value are required" }); return; }
+  if (!name || !value) return res.status(400).json({ error: "name and value are required" });
 
   const nameKey = name.trim().toUpperCase().replace(/\s+/g, "_");
 
@@ -113,8 +70,7 @@ router.post("/api/secrets", async (req, res) => {
       .set({ encryptedValue: encrypt(value), updatedAt: new Date() })
       .where(eq(userSecretsTable.id, existing[0].id))
       .returning();
-    res.json({ id: updated.id, name: updated.name, maskedValue: maskValue(value) });
-    return;
+    return res.json({ id: updated.id, name: updated.name, maskedValue: maskValue(value) });
   }
 
   const [row] = await db
@@ -126,7 +82,7 @@ router.post("/api/secrets", async (req, res) => {
 });
 
 router.delete("/api/secrets/:id", async (req, res) => {
-  if (!req.session?.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
   const id = Number(req.params.id);
   await db
     .delete(userSecretsTable)
@@ -134,8 +90,18 @@ router.delete("/api/secrets/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
-// NOTE: The /api/secrets/env endpoint has been intentionally removed.
-// Returning plaintext secret values over the network is a security risk.
-// Secrets are injected server-side at serve-time via injectEnvScript().
+router.get("/api/secrets/env", async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Unauthorized" });
+  const rows = await db
+    .select()
+    .from(userSecretsTable)
+    .where(eq(userSecretsTable.userId, req.session.userId));
+
+  const env: Record<string, string> = {};
+  for (const r of rows) {
+    try { env[r.name] = decrypt(r.encryptedValue); } catch {}
+  }
+  res.json(env);
+});
 
 export default router;

@@ -10,7 +10,6 @@ import {
   templatesTable,
   usersTable,
   aiUsageLogTable,
-  userSecretsTable,
 } from "@workspace/db";
 import {
   CreateProjectBody,
@@ -19,7 +18,6 @@ import {
 } from "@workspace/api-zod";
 import { getAIClient } from "../lib/ai-client";
 import { isUnlimitedUser } from "../lib/admin";
-import { getUserDecryptedSecrets, injectEnvScript } from "./secrets";
 import { ensureFreeCredits, triggerAutoTopup } from "./credits";
 
 const MIN_CREDITS_TO_START = 500;
@@ -210,31 +208,20 @@ router.post("/projects/:id/messages", async (req, res) => {
     content: body.content,
   });
 
-  const [files, existingMessages, userSecretNames] = await Promise.all([
+  const [files, existingMessages] = await Promise.all([
     db.select().from(projectFilesTable).where(eq(projectFilesTable.projectId, projectId)),
     db.select().from(projectMessagesTable).where(eq(projectMessagesTable.projectId, projectId)).orderBy(projectMessagesTable.createdAt),
-    // Load only the NAMES of the user's secrets — values are never passed to Claude
-    userId
-      ? db.select({ name: userSecretsTable.name }).from(userSecretsTable).where(eq(userSecretsTable.userId, userId))
-      : Promise.resolve([]),
   ]);
 
   const filesContext = files
     .map((f) => `=== ${f.filename} (${f.language}) ===\n${f.content}`)
     .join("\n\n");
 
-  const secretsSection = userSecretNames.length > 0
-    ? `\nUSER SECRETS (names only — values are injected at runtime, NEVER hardcode them):
-${userSecretNames.map((s) => `- ${s.name}`).join("\n")}
-
-When your code needs to use one of these secrets, access it via window.__env.SECRET_NAME (e.g. window.__env.${userSecretNames[0].name}). The actual values are injected automatically at runtime — you will never see or write them.\n`
-    : "";
-
   const systemPrompt = `You are an AI coding assistant that builds web applications by modifying project files.
 
 Current project: "${project.name}"
 Description: "${project.description}"
-${secretsSection}
+
 Current files:
 ${filesContext}
 
@@ -253,7 +240,6 @@ CRITICAL RULES:
 - Use efficient, compact CSS (shorthand properties, no redundant rules)
 - Never apologise or explain that you ran out of space — just write complete files
 - If a feature requires many lines, simplify it rather than truncating
-- NEVER hardcode secret values in generated code — always use window.__env.SECRET_NAME
 
 CONTENT POLICY — STRICTLY ENFORCED:
 You are running inside Pronto, an AI-powered app builder. You must REFUSE to build any application that would directly compete with Pronto itself. This includes but is not limited to:
@@ -296,19 +282,6 @@ All other types of applications are welcome: landing pages, dashboards, games, p
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
-  // Track whether the client is still listening.
-  // When they navigate away the socket closes, but we want the
-  // generation to finish and be saved to the DB regardless.
-  let clientConnected = true;
-  req.on("close", () => { clientConnected = false; });
-
-  // Safe write: silently no-ops when the connection is already gone
-  // so that socket errors never bubble up and cancel the Anthropic stream.
-  function safeWrite(data: string) {
-    if (!clientConnected || res.writableEnded) return;
-    try { res.write(data); } catch { clientConnected = false; }
-  }
-
   const langMap: Record<string, string> = {
     html: "html", css: "css", js: "javascript", ts: "typescript",
     json: "json", md: "markdown", py: "python",
@@ -328,12 +301,12 @@ All other types of applications are welcome: landing pages, dashboards, games, p
       await db.update(projectFilesTable)
         .set({ content, language, updatedAt: new Date() })
         .where(eq(projectFilesTable.id, existingFile.id));
-      safeWrite(`data: ${JSON.stringify({ type: "file_update", fileId: existingFile.id, filename, content, language })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "file_update", fileId: existingFile.id, filename, content, language })}\n\n`);
     } else {
       const [newFile] = await db.insert(projectFilesTable)
         .values({ projectId, filename, content, language })
         .returning();
-      safeWrite(`data: ${JSON.stringify({ type: "file_update", fileId: newFile.id, filename, content, language, isNew: true })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: "file_update", fileId: newFile.id, filename, content, language, isNew: true })}\n\n`);
     }
   }
 
@@ -383,7 +356,7 @@ All other types of applications are welcome: landing pages, dashboards, games, p
   }
 
   const keepAlive = setInterval(() => {
-    safeWrite(": keep-alive\n\n");
+    if (!res.writableEnded) res.write(": keep-alive\n\n");
   }, 15000);
 
   try {
@@ -401,7 +374,7 @@ All other types of applications are welcome: landing pages, dashboards, games, p
         const chunk = event.delta.text;
         fullResponse += chunk;
         streamBuf += chunk;
-        safeWrite(`data: ${JSON.stringify({ type: "text", content: chunk })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "text", content: chunk })}\n\n`);
         await processStreamBuf();
       }
     }
@@ -454,19 +427,14 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     }
 
     const newBalance = unlimited ? null : (userId ? await getUserBalance(userId) : null);
-    safeWrite(`data: ${JSON.stringify({
-      type: "done",
-      creditsRemaining: newBalance,
-      unlimited,
-      creditsCharged: creditsUsed,
-      inputTokens,
-      outputTokens,
-    })}\n\n`);
-    if (!res.writableEnded) res.end();
+    res.write(`data: ${JSON.stringify({ type: "done", creditsRemaining: newBalance, unlimited })}\n\n`);
+    res.end();
   } catch (err) {
     console.error("Streaming error:", err);
-    safeWrite(`data: ${JSON.stringify({ type: "error", error: "Generation failed. Please try again." })}\n\n`);
-    if (!res.writableEnded) res.end();
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: "error", error: "Generation failed. Please try again." })}\n\n`);
+      res.end();
+    }
   } finally {
     clearInterval(keepAlive);
   }
@@ -474,11 +442,10 @@ All other types of applications are welcome: landing pages, dashboards, games, p
 
 router.get("/projects/:id/preview", async (req, res) => {
   const projectId = parseInt(req.params.id);
-
-  const [files, project] = await Promise.all([
-    db.select().from(projectFilesTable).where(eq(projectFilesTable.projectId, projectId)),
-    db.select({ userId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)),
-  ]);
+  const files = await db
+    .select()
+    .from(projectFilesTable)
+    .where(eq(projectFilesTable.projectId, projectId));
 
   const indexFile = files.find((f) => f.filename === "index.html") ?? files[0];
   if (!indexFile) {
@@ -486,17 +453,8 @@ router.get("/projects/:id/preview", async (req, res) => {
     return;
   }
 
-  // Inject user secrets at serve-time — values never appear in stored code
-  let html = indexFile.content;
-  const ownerId = project[0]?.userId;
-  if (ownerId) {
-    const env = await getUserDecryptedSecrets(ownerId);
-    html = injectEnvScript(html, env);
-  }
-
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.setHeader("Cache-Control", "no-store"); // prevent browser caching stale secrets
-  res.send(html);
+  res.send(indexFile.content);
 });
 
 router.put("/projects/:projectId/files/:fileId", async (req, res) => {
