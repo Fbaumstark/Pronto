@@ -9,6 +9,7 @@ import {
   Globe, X, Link2, CheckCircle2, AlertCircle, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { TemplatePicker } from "@/components/templates/TemplatePicker";
 
 interface Deployment {
   slug: string;
@@ -375,27 +376,62 @@ function ProjectCard({ project }: { project: any }) {
   );
 }
 
+interface Template {
+  id: number;
+  name: string;
+  description: string;
+  category: string;
+  emoji: string;
+}
+
 function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: number) => void }) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [templates, setTemplates] = useState<Template[]>([]);
   const createMutation = useCreateProject();
+
+  useEffect(() => {
+    fetch("/api/templates")
+      .then((r) => r.json())
+      .then(setTemplates)
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    const proj = await createMutation.mutateAsync({ data: { name, description: desc } as any });
+    const proj = await createMutation.mutateAsync({
+      data: { name, description: desc, templateId: selectedTemplateId } as any,
+    });
     onCreated(proj.id);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-card border border-border rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4"
+        className="bg-card border border-border rounded-2xl shadow-2xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-bold text-foreground mb-1">New project</h2>
-        <p className="text-sm text-muted-foreground mb-5">Give your app a name, then describe it in the chat.</p>
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">New project</h2>
+            <p className="text-sm text-muted-foreground">Pick a template or start from scratch.</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {templates.length > 0 && (
+            <TemplatePicker
+              templates={templates}
+              selectedId={selectedTemplateId}
+              onSelect={setSelectedTemplateId}
+            />
+          )}
+
           <input
             autoFocus
             value={name}
@@ -415,7 +451,11 @@ function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreate
               disabled={!name.trim() || createMutation.isPending}
               className="flex-1 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
             >
-              {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create project"}
+              {createMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Creating…</>
+              ) : (
+                selectedTemplateId ? "Create from template" : "Create project"
+              )}
             </button>
             <button
               type="button"

@@ -213,7 +213,19 @@ CRITICAL RULES:
 - Combine CSS and JS inline inside index.html to minimise file count
 - Use efficient, compact CSS (shorthand properties, no redundant rules)
 - Never apologise or explain that you ran out of space — just write complete files
-- If a feature requires many lines, simplify it rather than truncating`;
+- If a feature requires many lines, simplify it rather than truncating
+
+CONTENT POLICY — STRICTLY ENFORCED:
+You are running inside Pronto, an AI-powered app builder. You must REFUSE to build any application that would directly compete with Pronto itself. This includes but is not limited to:
+- AI-powered app builders, website builders, or code generators
+- Natural language to code tools or interfaces
+- Platforms where users describe software and AI writes it
+- Clones or re-implementations of Pronto's core product
+
+If a user asks you to build anything matching the above, respond with ONLY this message (no file output):
+"Sorry, I can't help build an app that competes with Pronto. This is the one thing I'm not able to create here. Try describing a different kind of app — I can build just about anything else!"
+
+All other types of applications are welcome: landing pages, dashboards, games, portfolios, tools, stores, social apps, etc.`;
 
 
   const chatMessages: { role: "user" | "assistant"; content: string }[] =
