@@ -410,19 +410,21 @@ All other types of applications are welcome: landing pages, dashboards, games, p
       creditsCharged: creditsUsed,
     }).catch((e) => console.error("Failed to log AI usage:", e));
 
-    if (userId && !unlimited) {
+    if (userId) {
       await db.insert(creditLedgerTable).values({
         userId, amount: -creditsUsed, type: "ai_generation",
         description: `AI generation for project ${projectId} (${inputTokens} in / ${outputTokens} out tokens)`,
       });
 
-      const postBalance = await getUserBalance(userId);
-      if (postBalance <= 0) {
-        const [userRow] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-        if (userRow?.stripeCustomerId) {
-          triggerAutoTopup(userId, userRow.stripeCustomerId).catch((e) =>
-            console.error("Auto top-up error:", e)
-          );
+      if (!unlimited) {
+        const postBalance = await getUserBalance(userId);
+        if (postBalance <= 0) {
+          const [userRow] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+          if (userRow?.stripeCustomerId) {
+            triggerAutoTopup(userId, userRow.stripeCustomerId).catch((e) =>
+              console.error("Auto top-up error:", e)
+            );
+          }
         }
       }
     }
