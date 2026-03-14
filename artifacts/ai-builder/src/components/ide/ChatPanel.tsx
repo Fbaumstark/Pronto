@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, Zap } from "lucide-react";
+import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, Zap, Clock } from "lucide-react";
 import { useListProjectMessages } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { getListProjectMessagesQueryKey } from "@workspace/api-client-react";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import ReactMarkdown from "react-markdown";
 import { cleanResponseForDisplay, cleanStreamingForDisplay } from "@/lib/clean-response";
@@ -40,8 +42,23 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
   const [attachedImage, setAttachedImage] = useState<{ imageData: string; imageMimeType: string; previewUrl: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
   const { data: messages, isLoading } = useListProjectMessages(projectId);
   const { sendMessage, isStreaming, streamingContent, fileUpdateVersion, stopStream, error, lastUsage } = useChatStream(projectId);
+
+  // Detect when the AI is still finishing in the background (user left and came back)
+  const lastMsg = messages?.[messages.length - 1];
+  const isGeneratingInBackground = !isStreaming && !isLoading && !!lastMsg && lastMsg.role === "user";
+
+  // Poll every 2 s until the AI response lands
+  useEffect(() => {
+    if (!isGeneratingInBackground) return;
+    const key = getListProjectMessagesQueryKey(projectId);
+    const timer = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: key });
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [isGeneratingInBackground, projectId, queryClient]);
 
   const scrollToBottom = () => {
     if (scrollRef.current) {
@@ -211,6 +228,20 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
               </div>
             )}
 
+            {/* Background generation indicator — user left and came back */}
+            {isGeneratingInBackground && (
+              <div className="flex gap-3 md:gap-4 animate-fade-in">
+                <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center bg-muted border border-border text-foreground shadow-sm">
+                  <Bot className="w-4 h-4 animate-pulse" />
+                </div>
+                <div className="rounded-2xl px-4 py-3 bg-muted/30 border border-border shadow-sm flex items-center gap-2.5">
+                  <Clock className="w-3.5 h-3.5 text-muted-foreground shrink-0 animate-pulse" />
+                  <span className="text-sm text-muted-foreground">Still working on it — checking every few seconds…</span>
+                  <Loader2 className="w-3.5 h-3.5 text-muted-foreground shrink-0 animate-spin" />
+                </div>
+              </div>
+            )}
+
             {/* Usage summary — shown after each completed generation */}
             {!isStreaming && lastUsage && (
               <div className="flex justify-center animate-fade-in">
@@ -272,8 +303,9 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
                 handleSubmit(e);
               }
             }}
-            placeholder={attachedImage ? "Describe what to change (or just hit send)…" : "Type a message to build your app..."}
-            className="w-full bg-muted/50 border border-border rounded-xl pl-11 pr-14 py-3 min-h-[60px] max-h-[160px] resize-none focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm placeholder:text-muted-foreground/70 transition-all duration-200 shadow-inner"
+            placeholder={isGeneratingInBackground ? "Waiting for AI to finish…" : attachedImage ? "Describe what to change (or just hit send)…" : "Type a message to build your app..."}
+            disabled={isGeneratingInBackground}
+            className="w-full bg-muted/50 border border-border rounded-xl pl-11 pr-14 py-3 min-h-[60px] max-h-[160px] resize-none focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm placeholder:text-muted-foreground/70 transition-all duration-200 shadow-inner disabled:opacity-50"
           />
 
           {/* Paperclip / attach button */}

@@ -282,6 +282,19 @@ All other types of applications are welcome: landing pages, dashboards, games, p
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
+  // Track whether the client is still listening.
+  // When they navigate away the socket closes, but we want the
+  // generation to finish and be saved to the DB regardless.
+  let clientConnected = true;
+  req.on("close", () => { clientConnected = false; });
+
+  // Safe write: silently no-ops when the connection is already gone
+  // so that socket errors never bubble up and cancel the Anthropic stream.
+  function safeWrite(data: string) {
+    if (!clientConnected || res.writableEnded) return;
+    try { res.write(data); } catch { clientConnected = false; }
+  }
+
   const langMap: Record<string, string> = {
     html: "html", css: "css", js: "javascript", ts: "typescript",
     json: "json", md: "markdown", py: "python",
@@ -301,12 +314,12 @@ All other types of applications are welcome: landing pages, dashboards, games, p
       await db.update(projectFilesTable)
         .set({ content, language, updatedAt: new Date() })
         .where(eq(projectFilesTable.id, existingFile.id));
-      res.write(`data: ${JSON.stringify({ type: "file_update", fileId: existingFile.id, filename, content, language })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ type: "file_update", fileId: existingFile.id, filename, content, language })}\n\n`);
     } else {
       const [newFile] = await db.insert(projectFilesTable)
         .values({ projectId, filename, content, language })
         .returning();
-      res.write(`data: ${JSON.stringify({ type: "file_update", fileId: newFile.id, filename, content, language, isNew: true })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ type: "file_update", fileId: newFile.id, filename, content, language, isNew: true })}\n\n`);
     }
   }
 
@@ -356,7 +369,7 @@ All other types of applications are welcome: landing pages, dashboards, games, p
   }
 
   const keepAlive = setInterval(() => {
-    if (!res.writableEnded) res.write(": keep-alive\n\n");
+    safeWrite(": keep-alive\n\n");
   }, 15000);
 
   try {
@@ -374,7 +387,7 @@ All other types of applications are welcome: landing pages, dashboards, games, p
         const chunk = event.delta.text;
         fullResponse += chunk;
         streamBuf += chunk;
-        res.write(`data: ${JSON.stringify({ type: "text", content: chunk })}\n\n`);
+        safeWrite(`data: ${JSON.stringify({ type: "text", content: chunk })}\n\n`);
         await processStreamBuf();
       }
     }
@@ -427,7 +440,7 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     }
 
     const newBalance = unlimited ? null : (userId ? await getUserBalance(userId) : null);
-    res.write(`data: ${JSON.stringify({
+    safeWrite(`data: ${JSON.stringify({
       type: "done",
       creditsRemaining: newBalance,
       unlimited,
@@ -435,13 +448,11 @@ All other types of applications are welcome: landing pages, dashboards, games, p
       inputTokens,
       outputTokens,
     })}\n\n`);
-    res.end();
+    if (!res.writableEnded) res.end();
   } catch (err) {
     console.error("Streaming error:", err);
-    if (!res.writableEnded) {
-      res.write(`data: ${JSON.stringify({ type: "error", error: "Generation failed. Please try again." })}\n\n`);
-      res.end();
-    }
+    safeWrite(`data: ${JSON.stringify({ type: "error", error: "Generation failed. Please try again." })}\n\n`);
+    if (!res.writableEnded) res.end();
   } finally {
     clearInterval(keepAlive);
   }
