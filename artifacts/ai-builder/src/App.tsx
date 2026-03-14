@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +9,8 @@ import { LoginPage } from "./pages/LoginPage";
 import { AdminPage } from "./pages/AdminPage";
 import { UsagePage } from "./pages/UsagePage";
 import { SecretsPage } from "./pages/SecretsPage";
+import TermsPage from "./pages/TermsPage";
+import PrivacyPage from "./pages/PrivacyPage";
 import { useAuth, AuthProvider } from "@workspace/replit-auth-web";
 import { Loader2 } from "lucide-react";
 import { HelpChatWidget } from "@/components/help/HelpChatWidget";
@@ -22,6 +24,8 @@ const queryClient = new QueryClient({
   },
 });
 
+const PUBLIC_ROUTES = ["/terms", "/privacy"];
+
 function Router() {
   return (
     <Switch>
@@ -30,6 +34,8 @@ function Router() {
       <Route path="/admin" component={AdminPage} />
       <Route path="/usage" component={UsagePage} />
       <Route path="/secrets" component={SecretsPage} />
+      <Route path="/terms" component={TermsPage} />
+      <Route path="/privacy" component={PrivacyPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -37,6 +43,7 @@ function Router() {
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
+  const [location] = useLocation();
 
   if (isLoading) {
     return (
@@ -46,7 +53,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !PUBLIC_ROUTES.includes(location)) {
     return <LoginPage />;
   }
 

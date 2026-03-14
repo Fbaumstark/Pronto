@@ -81,13 +81,15 @@ function AuthForm({ defaultMode, onSuccess }: { defaultMode: Mode; onSuccess: (u
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
-  const switchMode = (m: Mode) => { setMode(m); setError(null); setPassword(""); setConfirmPassword(""); };
+  const switchMode = (m: Mode) => { setMode(m); setError(null); setPassword(""); setConfirmPassword(""); setAgreedToTerms(false); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (mode === "register" && password !== confirmPassword) { setError("Passwords don't match"); return; }
+    if (mode === "register" && !agreedToTerms) { setError("You must agree to the Terms of Service and Privacy Policy to create an account."); return; }
     setIsLoading(true);
     try {
       const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
@@ -138,9 +140,28 @@ function AuthForm({ defaultMode, onSuccess }: { defaultMode: Mode; onSuccess: (u
               className="w-full bg-background border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
           </div>
         )}
+        {mode === "register" && (
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={agreedToTerms}
+              onChange={(e) => setAgreedToTerms(e.target.checked)}
+              className="mt-0.5 w-4 h-4 shrink-0 rounded border-border accent-primary cursor-pointer"
+            />
+            <span className="text-xs text-muted-foreground leading-relaxed group-hover:text-foreground transition-colors">
+              I agree to Pronto's{" "}
+              <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80">
+                Terms of Service
+              </a>{" "}and{" "}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80">
+                Privacy Policy
+              </a>. I confirm I am at least 13 years old and understand the Service is provided as-is with no guarantees of uptime or data retention.
+            </span>
+          </label>
+        )}
         {error && <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">{error}</p>}
-        <button type="submit" disabled={isLoading}
-          className="w-full bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-semibold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/25">
+        <button type="submit" disabled={isLoading || (mode === "register" && !agreedToTerms)}
+          className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground font-semibold py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/25">
           {isLoading
             ? <><Loader2 className="w-4 h-4 animate-spin" /> {mode === "login" ? "Signing in…" : "Creating account…"}</>
             : mode === "login" ? "Sign in" : "Create free account — no card needed"}
