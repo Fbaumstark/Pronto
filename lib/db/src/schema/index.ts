@@ -8,3 +8,4 @@ export * from "./project_versions";
 export * from "./deployments";
 export * from "./credits";
 export * from "./secrets";
+export * from "./ai_usage_log";

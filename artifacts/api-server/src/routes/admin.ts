@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { sql, desc } from "drizzle-orm";
-import { db, usersTable, creditLedgerTable } from "@workspace/db";
+import { db, usersTable, creditLedgerTable, aiUsageLogTable } from "@workspace/db";
 import { isUnlimitedUser } from "../lib/admin";
 
 const router = Router();
@@ -78,6 +78,89 @@ router.get("/admin/stats", requireAdmin, async (_req, res) => {
       totalCreditsUsed,
     },
     users: enriched,
+  });
+});
+
+// ── AI Cost Analytics ──────────────────────────────────────────────
+router.get("/admin/ai-costs", requireAdmin, async (req, res) => {
+  const period = (req.query.period as string) ?? "month";
+
+  // Map period → interval string and number of buckets
+  const periodConfig: Record<string, { trunc: string; interval: string; buckets: number; labelFmt: string }> = {
+    day:    { trunc: "hour",  interval: "1 day",    buckets: 24, labelFmt: "HH24:00" },
+    week:   { trunc: "day",   interval: "7 days",   buckets: 7,  labelFmt: "Dy" },
+    month:  { trunc: "day",   interval: "30 days",  buckets: 30, labelFmt: "MM/DD" },
+    year:   { trunc: "month", interval: "1 year",   buckets: 12, labelFmt: "Mon" },
+    "3year":  { trunc: "month", interval: "3 years",  buckets: 36, labelFmt: "Mon YY" },
+    "5year":  { trunc: "month", interval: "5 years",  buckets: 60, labelFmt: "Mon YY" },
+  };
+
+  const cfg = periodConfig[period] ?? periodConfig["month"];
+
+  // Timeseries of cost grouped by period bucket AND provider
+  const tsRows = await db.execute(sql`
+    SELECT
+      date_trunc(${cfg.trunc}, created_at)          AS bucket,
+      provider,
+      COUNT(*)::int                                  AS generations,
+      SUM(input_tokens)::bigint                      AS input_tokens,
+      SUM(output_tokens)::bigint                     AS output_tokens,
+      SUM(cost_usd)::float                           AS cost_usd,
+      SUM(credits_charged)::bigint                   AS credits_charged
+    FROM ai_usage_log
+    WHERE created_at >= NOW() - ${cfg.interval}::interval
+    GROUP BY 1, 2
+    ORDER BY 1 ASC
+  `);
+
+  // Summary totals for the period (both providers combined + split)
+  const summaryRows = await db.execute(sql`
+    SELECT
+      provider,
+      COUNT(*)::int                 AS generations,
+      SUM(input_tokens)::bigint     AS input_tokens,
+      SUM(output_tokens)::bigint    AS output_tokens,
+      SUM(cost_usd)::float          AS cost_usd,
+      SUM(credits_charged)::bigint  AS credits_charged
+    FROM ai_usage_log
+    WHERE created_at >= NOW() - ${cfg.interval}::interval
+    GROUP BY provider
+  `);
+
+  // Top users for the period
+  const topUsersRows = await db.execute(sql`
+    SELECT
+      u.id,
+      u.email,
+      u.first_name,
+      COUNT(l.id)::int              AS generations,
+      SUM(l.cost_usd)::float        AS cost_usd,
+      SUM(l.credits_charged)::bigint AS credits_charged
+    FROM ai_usage_log l
+    JOIN users u ON u.id = l.user_id
+    WHERE l.created_at >= NOW() - ${cfg.interval}::interval
+    GROUP BY u.id, u.email, u.first_name
+    ORDER BY cost_usd DESC
+    LIMIT 10
+  `);
+
+  // All-time totals
+  const allTimeRows = await db.execute(sql`
+    SELECT
+      COUNT(*)::int                 AS generations,
+      SUM(input_tokens)::bigint     AS input_tokens,
+      SUM(output_tokens)::bigint    AS output_tokens,
+      SUM(cost_usd)::float          AS cost_usd,
+      SUM(credits_charged)::bigint  AS credits_charged
+    FROM ai_usage_log
+  `);
+
+  res.json({
+    period,
+    timeseries: tsRows.rows,
+    summary: summaryRows.rows,
+    topUsers: topUsersRows.rows,
+    allTime: allTimeRows.rows[0] ?? {},
   });
 });
 

@@ -5,10 +5,15 @@ import {
   Users, DollarSign, Zap, ArrowLeft, TrendingUp,
   ChevronUp, ChevronDown, Search, RefreshCw,
   Settings, Key, CheckCircle2, AlertCircle, Loader2,
-  Eye, EyeOff, Globe
+  Eye, EyeOff, Globe, BarChart3, Activity, Hash,
+  ArrowUpRight, ArrowDownRight,
 } from "lucide-react";
 import { ProntoLogoMark, ProntoTagline } from "@/components/ProntoLogo";
 import { formatDistanceToNow, format } from "date-fns";
+import {
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
 
 interface AdminUser {
   id: string;
@@ -255,6 +260,290 @@ function AIProviderPanel() {
   );
 }
 
+// ── period helpers ─────────────────────────────────────────────────
+const PERIODS = [
+  { key: "day",    label: "Today" },
+  { key: "week",   label: "7 Days" },
+  { key: "month",  label: "30 Days" },
+  { key: "year",   label: "1 Year" },
+  { key: "3year",  label: "3 Years" },
+  { key: "5year",  label: "5 Years" },
+] as const;
+
+type Period = typeof PERIODS[number]["key"];
+
+interface AICostsData {
+  period: string;
+  timeseries: { bucket: string; provider: string; generations: number; input_tokens: string; output_tokens: string; cost_usd: number; credits_charged: string }[];
+  summary: { provider: string; generations: number; input_tokens: string; output_tokens: string; cost_usd: number; credits_charged: string }[];
+  topUsers: { id: string; email: string; first_name: string; generations: number; cost_usd: number; credits_charged: string }[];
+  allTime: { generations: number; input_tokens: string; output_tokens: string; cost_usd: number; credits_charged: string };
+}
+
+function fmt$(n: number) { return n < 0.01 ? `<$0.01` : `$${n.toFixed(n >= 1 ? 2 : 4)}`; }
+function fmtNum(n: number | string) { return Number(n).toLocaleString(); }
+function fmtTokens(n: number | string) {
+  const v = Number(n);
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
+  return String(v);
+}
+
+// Merge timeseries rows by bucket, splitting provider data
+function buildChartData(timeseries: AICostsData["timeseries"]) {
+  const map = new Map<string, any>();
+  for (const row of timeseries) {
+    const key = row.bucket;
+    if (!map.has(key)) map.set(key, { bucket: key, replit: 0, own: 0, total: 0, replit_gen: 0, own_gen: 0 });
+    const entry = map.get(key)!;
+    const cost = Number(row.cost_usd ?? 0);
+    if (row.provider === "own") { entry.own += cost; entry.own_gen += row.generations; }
+    else { entry.replit += cost; entry.replit_gen += row.generations; }
+    entry.total += cost;
+  }
+  return Array.from(map.values()).map((e) => ({
+    ...e,
+    label: new Date(e.bucket).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    replit: parseFloat(e.replit.toFixed(4)),
+    own: parseFloat(e.own.toFixed(4)),
+    total: parseFloat(e.total.toFixed(4)),
+  }));
+}
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-card border border-border/70 rounded-xl shadow-xl p-3 text-xs space-y-1.5">
+      <p className="font-semibold text-foreground mb-1">{label}</p>
+      {payload.map((p: any) => (
+        <div key={p.dataKey} className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} />
+          <span className="text-muted-foreground capitalize">{p.dataKey === "replit" ? "Replit AI" : p.dataKey === "own" ? "Direct API" : "Total"}</span>
+          <span className="ml-auto font-mono text-foreground">{fmt$(p.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+function AICostsPanel() {
+  const [period, setPeriod] = useState<Period>("month");
+  const [data, setData] = useState<AICostsData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/admin/ai-costs?period=${period}`)
+      .then((r) => r.json())
+      .then(setData)
+      .finally(() => setLoading(false));
+  }, [period]);
+
+  const chartData = data ? buildChartData(data.timeseries) : [];
+  const replitSummary = data?.summary.find((s) => s.provider === "replit");
+  const ownSummary = data?.summary.find((s) => s.provider === "own");
+  const totalCost = (Number(replitSummary?.cost_usd ?? 0) + Number(ownSummary?.cost_usd ?? 0));
+  const totalGen = (Number(replitSummary?.generations ?? 0) + Number(ownSummary?.generations ?? 0));
+  const totalTokens = (Number(replitSummary?.output_tokens ?? 0) + Number(ownSummary?.output_tokens ?? 0));
+
+  const hasData = data && (data.timeseries.length > 0 || data.summary.length > 0);
+
+  return (
+    <div className="bg-card border border-border/60 rounded-2xl overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-border/50">
+        <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
+          <BarChart3 className="w-5 h-5 text-violet-400" />
+        </div>
+        <div>
+          <h2 className="text-sm font-bold text-foreground">AI Cost Analytics</h2>
+          <p className="text-xs text-muted-foreground">Actual API costs for every generation</p>
+        </div>
+        {/* All-time total */}
+        {data?.allTime && Number(data.allTime.cost_usd) > 0 && (
+          <div className="ml-auto text-right">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">All-time cost</p>
+            <p className="text-sm font-bold text-foreground">{fmt$(Number(data.allTime.cost_usd))}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="p-5 space-y-5">
+        {/* Period selector */}
+        <div className="flex gap-1.5 flex-wrap">
+          {PERIODS.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => setPeriod(p.key)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                period === p.key
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : !hasData ? (
+          <div className="text-center py-12 space-y-2">
+            <Activity className="w-8 h-8 text-muted-foreground/40 mx-auto" />
+            <p className="text-sm font-medium text-muted-foreground">No AI usage recorded yet</p>
+            <p className="text-xs text-muted-foreground/60">Data will appear here after the first AI generation runs.</p>
+          </div>
+        ) : (
+          <>
+            {/* Summary stat cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-muted/30 rounded-xl p-4 border border-border/40">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">API Cost</p>
+                <p className="text-xl font-bold text-foreground">{fmt$(totalCost)}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">this {PERIODS.find(p=>p.key===period)?.label.toLowerCase()}</p>
+              </div>
+              <div className="bg-muted/30 rounded-xl p-4 border border-border/40">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Generations</p>
+                <p className="text-xl font-bold text-foreground">{fmtNum(totalGen)}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">AI builds run</p>
+              </div>
+              <div className="bg-muted/30 rounded-xl p-4 border border-border/40">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Output Tokens</p>
+                <p className="text-xl font-bold text-foreground">{fmtTokens(totalTokens)}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">tokens generated</p>
+              </div>
+              <div className="bg-muted/30 rounded-xl p-4 border border-border/40">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Avg Cost/Gen</p>
+                <p className="text-xl font-bold text-foreground">{totalGen > 0 ? fmt$(totalCost / totalGen) : "$0"}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">per generation</p>
+              </div>
+            </div>
+
+            {/* Provider breakdown */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                { label: "Replit AI", key: "replit", data: replitSummary, color: "text-primary", bg: "bg-primary/10", border: "border-primary/20" },
+                { label: "Direct Anthropic", key: "own", data: ownSummary, color: "text-green-400", bg: "bg-green-500/10", border: "border-green-500/20" },
+              ].map(({ label, data: sd, color, bg, border }) => (
+                <div key={label} className={`${bg} border ${border} rounded-xl p-4`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className={`text-xs font-bold ${color}`}>{label}</p>
+                    {sd ? <p className={`text-sm font-bold ${color}`}>{fmt$(Number(sd.cost_usd))}</p> : <p className="text-xs text-muted-foreground">No usage</p>}
+                  </div>
+                  {sd && (
+                    <div className="grid grid-cols-3 gap-2 text-[10px] text-muted-foreground">
+                      <div><span className="block text-foreground font-semibold">{fmtNum(sd.generations)}</span>generations</div>
+                      <div><span className="block text-foreground font-semibold">{fmtTokens(sd.input_tokens)}</span>in tokens</div>
+                      <div><span className="block text-foreground font-semibold">{fmtTokens(sd.output_tokens)}</span>out tokens</div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Cost over time chart */}
+            {chartData.length > 0 && (
+              <div className="bg-muted/20 rounded-xl p-4 border border-border/40">
+                <p className="text-xs font-semibold text-foreground mb-4">API Cost Over Time</p>
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="gradReplit" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="gradOwn" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#34d399" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#71717a" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={{ fontSize: 10, fill: "#71717a" }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v.toFixed(2)}`} width={48} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: "11px" }} formatter={(v) => v === "replit" ? "Replit AI" : "Direct API"} />
+                    <Area type="monotone" dataKey="replit" stroke="#8b5cf6" fill="url(#gradReplit)" strokeWidth={2} dot={false} />
+                    <Area type="monotone" dataKey="own" stroke="#34d399" fill="url(#gradOwn)" strokeWidth={2} dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Generations per day chart */}
+            {chartData.length > 0 && (
+              <div className="bg-muted/20 rounded-xl p-4 border border-border/40">
+                <p className="text-xs font-semibold text-foreground mb-4">Generations Over Time</p>
+                <ResponsiveContainer width="100%" height={160}>
+                  <BarChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#71717a" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={{ fontSize: 10, fill: "#71717a" }} tickLine={false} axisLine={false} width={32} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: "11px" }} formatter={(v) => v === "replit_gen" ? "Replit AI" : "Direct API"} />
+                    <Bar dataKey="replit_gen" stackId="a" fill="#8b5cf6" radius={[0,0,0,0]} />
+                    <Bar dataKey="own_gen" stackId="a" fill="#34d399" radius={[3,3,0,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Top users */}
+            {data.topUsers.length > 0 && (
+              <div className="bg-muted/20 rounded-xl border border-border/40 overflow-hidden">
+                <div className="px-4 py-3 border-b border-border/40">
+                  <p className="text-xs font-semibold text-foreground">Top Users by Cost</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border/30">
+                        <th className="px-4 py-2.5 text-left text-muted-foreground font-medium">User</th>
+                        <th className="px-4 py-2.5 text-right text-muted-foreground font-medium">Generations</th>
+                        <th className="px-4 py-2.5 text-right text-muted-foreground font-medium">API Cost</th>
+                        <th className="px-4 py-2.5 text-right text-muted-foreground font-medium">Credits Used</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.topUsers.map((u, i) => (
+                        <tr key={u.id} className={i % 2 === 0 ? "bg-muted/10" : ""}>
+                          <td className="px-4 py-2.5 text-foreground font-medium truncate max-w-[180px]">{u.email ?? u.first_name ?? "—"}</td>
+                          <td className="px-4 py-2.5 text-right text-muted-foreground">{fmtNum(u.generations)}</td>
+                          <td className="px-4 py-2.5 text-right font-mono font-bold text-foreground">{fmt$(Number(u.cost_usd))}</td>
+                          <td className="px-4 py-2.5 text-right text-muted-foreground">{fmtNum(Number(u.credits_charged))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* All-time summary */}
+            {data.allTime && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 border-t border-border/30">
+                {[
+                  { label: "All-time API cost", value: fmt$(Number(data.allTime.cost_usd)), icon: DollarSign },
+                  { label: "All-time generations", value: fmtNum(Number(data.allTime.generations)), icon: Activity },
+                  { label: "All-time input tokens", value: fmtTokens(data.allTime.input_tokens), icon: Hash },
+                  { label: "All-time output tokens", value: fmtTokens(data.allTime.output_tokens), icon: Hash },
+                ].map(({ label, value, icon: Icon }) => (
+                  <div key={label} className="text-center">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
+                    <p className="text-base font-bold text-muted-foreground/80 mt-0.5">{value}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function AdminPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuth() as any;
@@ -493,6 +782,10 @@ export function AdminPage() {
             </div>
           </>
         ) : null}
+
+        {/* ── AI Cost Analytics ── */}
+        <AICostsPanel />
+
       </div>
     </div>
   );

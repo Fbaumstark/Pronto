@@ -172,12 +172,12 @@ export function HelpChatWidget() {
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 16, scale: 0.97 }}
+            initial={{ opacity: 0, x: 12, scale: 0.97 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 12, scale: 0.97 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className="fixed bottom-36 md:bottom-20 right-4 z-50 w-[340px] md:w-[380px] flex flex-col bg-card border border-border/70 rounded-2xl shadow-2xl overflow-hidden"
-            style={{ maxHeight: "min(520px, calc(100vh - 100px))" }}
+            className="fixed top-1/2 -translate-y-1/2 right-[72px] z-50 w-[320px] md:w-[360px] flex flex-col bg-card border border-border/70 rounded-2xl shadow-2xl overflow-hidden"
+            style={{ maxHeight: "min(520px, calc(100vh - 32px))" }}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-primary/10 to-violet-500/10 border-b border-border/50 shrink-0">

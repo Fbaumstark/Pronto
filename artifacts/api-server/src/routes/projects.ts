@@ -9,6 +9,7 @@ import {
   creditLedgerTable,
   templatesTable,
   usersTable,
+  aiUsageLogTable,
 } from "@workspace/db";
 import {
   CreateProjectBody,
@@ -34,11 +35,15 @@ const ANTHROPIC_PRICING: Record<string, { input: number; output: number }> = {
 
 const DEFAULT_PRICING = { input: 3.00, output: 15.00 };
 const CREDIT_VALUE_USD = 10 / 500_000;
-const MARKUP = 5;
+const MARKUP = 10;
+
+function calculateCostUsd(model: string, inputTokens: number, outputTokens: number): number {
+  const pricing = ANTHROPIC_PRICING[model] ?? DEFAULT_PRICING;
+  return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
+}
 
 function calculateCredits(model: string, inputTokens: number, outputTokens: number): number {
-  const pricing = ANTHROPIC_PRICING[model] ?? DEFAULT_PRICING;
-  const costUsd = (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
+  const costUsd = calculateCostUsd(model, inputTokens, outputTokens);
   return Math.max(Math.ceil((costUsd * MARKUP) / CREDIT_VALUE_USD), MIN_CREDITS_TO_START);
 }
 
@@ -340,7 +345,7 @@ All other types of applications are welcome: landing pages, dashboards, games, p
 
   try {
     const model = "claude-sonnet-4-6";
-    const anthropic = await getAIClient();
+    const { client: anthropic, provider: aiProvider } = await getAIClient();
     const stream = anthropic.messages.stream({
       model,
       max_tokens: 16000,
@@ -374,6 +379,19 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     await db.insert(projectMessagesTable).values({ projectId, role: "assistant", content: fullResponse });
 
     await saveVersion(projectId);
+
+    // Always log AI usage (regardless of unlimited status) for admin analytics
+    const costUsd = calculateCostUsd(model, inputTokens, outputTokens);
+    db.insert(aiUsageLogTable).values({
+      userId: userId ?? null,
+      projectId,
+      provider: aiProvider,
+      model,
+      inputTokens,
+      outputTokens,
+      costUsd,
+      creditsCharged: creditsUsed,
+    }).catch((e) => console.error("Failed to log AI usage:", e));
 
     if (userId && !unlimited) {
       await db.insert(creditLedgerTable).values({

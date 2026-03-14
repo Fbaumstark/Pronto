@@ -3,6 +3,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { GetCurrentAuthUserResponse } from "@workspace/api-zod";
+import { ensureFreeCredits } from "./credits";
 import {
   clearSession,
   getSessionId,
@@ -88,6 +89,8 @@ router.post("/auth/register", async (req: Request, res: Response) => {
 
   const sid = await createSession(sessionData);
   setSessionCookie(res, sid);
+  // Grant free credits immediately on signup (fire-and-forget)
+  ensureFreeCredits(user.id).catch(() => {});
   res.status(201).json({ user: sessionData.user });
 });
 

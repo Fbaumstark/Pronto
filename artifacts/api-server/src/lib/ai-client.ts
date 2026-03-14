@@ -3,15 +3,15 @@ import { eq } from "drizzle-orm";
 import { anthropic as replitAnthropic } from "@workspace/integrations-anthropic-ai";
 import { db, appSettingsTable } from "@workspace/db";
 
-export async function getAIClient(): Promise<Anthropic> {
+export async function getAIClient(): Promise<{ client: Anthropic; provider: "own" | "replit" }> {
   try {
     const [settings] = await db.select().from(appSettingsTable).limit(1);
     if (settings?.provider === "own" && settings.ownApiKey) {
-      return new Anthropic({ apiKey: settings.ownApiKey });
+      return { client: new Anthropic({ apiKey: settings.ownApiKey }), provider: "own" };
     }
   } catch {
   }
-  return replitAnthropic;
+  return { client: replitAnthropic, provider: "replit" };
 }
 
 export async function getSettings() {
