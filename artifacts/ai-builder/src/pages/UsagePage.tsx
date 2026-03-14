@@ -243,20 +243,20 @@ export function UsagePage() {
                   {
                     icon: <Bot className="w-4 h-4 text-violet-400" />,
                     label: "AI generation",
-                    sub: "Each time you ask the AI to build or update your app",
-                    cost: 5_000,
+                    sub: "10× Anthropic cost · scales with prompt & response size",
+                    cost: null as number | null,
                   },
                   {
                     icon: <Rocket className="w-4 h-4 text-blue-400" />,
                     label: "New deployment",
                     sub: "First time you publish a project to a public URL",
-                    cost: 10_000,
+                    cost: 10_000 as number | null,
                   },
                   {
                     icon: <RefreshCw className="w-4 h-4 text-sky-400" />,
                     label: "Redeploy",
                     sub: "Push updates to an already-published project",
-                    cost: 2_000,
+                    cost: 2_000 as number | null,
                   },
                 ].map(({ icon, label, sub, cost }) => (
                   <div key={label} className="flex items-center justify-between px-5 py-4">
@@ -270,8 +270,17 @@ export function UsagePage() {
                       </div>
                     </div>
                     <div className="text-right shrink-0 ml-4">
-                      <p className="text-sm font-bold text-foreground">{cost.toLocaleString()}</p>
-                      <p className="text-[11px] text-muted-foreground">credits</p>
+                      {cost === null ? (
+                        <>
+                          <p className="text-sm font-bold text-violet-400">Variable</p>
+                          <p className="text-[11px] text-muted-foreground">per request</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-bold text-foreground">{cost.toLocaleString()}</p>
+                          <p className="text-[11px] text-muted-foreground">credits</p>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}

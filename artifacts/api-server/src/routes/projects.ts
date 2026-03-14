@@ -19,7 +19,28 @@ import { getAIClient } from "../lib/ai-client";
 import { isUnlimitedUser } from "../lib/admin";
 import { ensureFreeCredits, triggerAutoTopup } from "./credits";
 
-const CREDITS_PER_REQUEST = 5000;
+const MIN_CREDITS_TO_START = 500;
+
+const ANTHROPIC_PRICING: Record<string, { input: number; output: number }> = {
+  "claude-sonnet-4-6":          { input: 3.00,  output: 15.00 },
+  "claude-sonnet-4-5":          { input: 3.00,  output: 15.00 },
+  "claude-sonnet-4":            { input: 3.00,  output: 15.00 },
+  "claude-3-5-sonnet-20241022": { input: 3.00,  output: 15.00 },
+  "claude-3-5-sonnet-20240620": { input: 3.00,  output: 15.00 },
+  "claude-3-5-haiku-20241022":  { input: 0.80,  output: 4.00  },
+  "claude-3-opus-20240229":     { input: 15.00, output: 75.00 },
+  "claude-3-haiku-20240307":    { input: 0.25,  output: 1.25  },
+};
+
+const DEFAULT_PRICING = { input: 3.00, output: 15.00 };
+const CREDIT_VALUE_USD = 10 / 500_000;
+const MARKUP = 10;
+
+function calculateCredits(model: string, inputTokens: number, outputTokens: number): number {
+  const pricing = ANTHROPIC_PRICING[model] ?? DEFAULT_PRICING;
+  const costUsd = (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
+  return Math.max(Math.ceil((costUsd * MARKUP) / CREDIT_VALUE_USD), MIN_CREDITS_TO_START);
+}
 
 async function getUserBalance(userId: string): Promise<number> {
   const [row] = await db
@@ -170,7 +191,7 @@ router.post("/projects/:id/messages", async (req, res) => {
   if (userId && !unlimited) {
     await ensureFreeCredits(userId);
     const balance = await getUserBalance(userId);
-    if (balance < CREDITS_PER_REQUEST) {
+    if (balance < MIN_CREDITS_TO_START) {
       res.status(402).json({ error: "Insufficient credits. Please add more credits to continue." });
       return;
     }
@@ -318,9 +339,10 @@ All other types of applications are welcome: landing pages, dashboards, games, p
   }, 15000);
 
   try {
+    const model = "claude-sonnet-4-6";
     const anthropic = await getAIClient();
     const stream = anthropic.messages.stream({
-      model: "claude-sonnet-4-6",
+      model,
       max_tokens: 16000,
       system: systemPrompt,
       messages: chatMessages,
@@ -336,6 +358,13 @@ All other types of applications are welcome: landing pages, dashboards, games, p
       }
     }
 
+    const finalMsg = await stream.finalMessage();
+    const inputTokens  = finalMsg.usage?.input_tokens  ?? 0;
+    const outputTokens = finalMsg.usage?.output_tokens ?? 0;
+    const creditsUsed  = calculateCredits(model, inputTokens, outputTokens);
+
+    console.log(`[credits] model=${model} in=${inputTokens} out=${outputTokens} credits=${creditsUsed}`);
+
     if (inFile && fileBuf.trim()) {
       await flushFile(currentFilename, fileBuf);
     }
@@ -348,8 +377,8 @@ All other types of applications are welcome: landing pages, dashboards, games, p
 
     if (userId && !unlimited) {
       await db.insert(creditLedgerTable).values({
-        userId, amount: -CREDITS_PER_REQUEST, type: "ai_generation",
-        description: `AI generation for project ${projectId}`,
+        userId, amount: -creditsUsed, type: "ai_generation",
+        description: `AI generation for project ${projectId} (${inputTokens} in / ${outputTokens} out tokens)`,
       });
 
       const postBalance = await getUserBalance(userId);

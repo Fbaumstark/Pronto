@@ -209,8 +209,8 @@ router.get("/usage", async (req, res) => {
     total: Number(r.total),
   }));
 
-  const creditCosts: Record<string, number> = {
-    ai_generation: 5000,
+  const creditCosts: Record<string, number | null> = {
+    ai_generation: null,
     deployment: 10000,
     redeploy: 2000,
   };
