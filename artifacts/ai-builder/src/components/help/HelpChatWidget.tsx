@@ -267,7 +267,7 @@ export function HelpChatWidget() {
       {/* Floating trigger button */}
       <button
         onClick={() => setOpen((o) => !o)}
-        className={`fixed bottom-20 md:bottom-4 right-4 z-50 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ${
+        className={`fixed top-1/2 -translate-y-1/2 right-4 z-50 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ${
           open
             ? "bg-muted border border-border text-foreground"
             : "bg-primary hover:bg-primary/90 text-primary-foreground"
