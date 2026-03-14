@@ -71,7 +71,7 @@ function typeMeta(type: string) {
 }
 
 function creditValue(credits: number): string {
-  // $10 per 500k credits → $0.00002 per credit
+  // $25 per 1.25M credits → $0.00002 per credit
   const dollars = (credits / 500_000) * 10;
   if (dollars < 0.01) return `<$0.01`;
   return `$${dollars.toFixed(2)}`;
@@ -376,7 +376,7 @@ export function UsagePage() {
               <p>
                 Credit costs reflect the compute resources used to generate your apps and host them publicly.
                 1,000 credits ≈ {creditValue(1000)} in value.
-                Subscription adds 500,000 credits/month. Auto top-up adds 1,250,000 credits for $25 when your balance reaches zero.
+                Subscription adds 1,250,000 credits/month for $25. Auto top-up adds 1,250,000 more credits for $25 when your balance reaches zero.
               </p>
             </div>
           </>

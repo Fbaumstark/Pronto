@@ -5,12 +5,12 @@ import { isUnlimitedUser } from "../lib/admin";
 import { getUncachableStripeClient } from "../lib/stripeClient";
 
 const FREE_CREDITS = 50000;
-const MONTHLY_CREDITS = 500000;
+const MONTHLY_CREDITS = 1250000;
 const TOPUP_CREDITS = 1250000;
 const TOPUP_AMOUNT_CENTS = 2500; // $25
 
 // Price IDs from Stripe setup script output
-const MONTHLY_PRICE_ID = "price_1TAcQUGx0FO9OC64gSq83qKn";
+const MONTHLY_PRICE_ID = "price_1TAhPQGx0FO9OC64Jr8IZj3A"; // $25/month
 
 const router: IRouter = Router();
 

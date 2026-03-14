@@ -571,7 +571,7 @@ export function Home() {
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Zap className="w-3.5 h-3.5 text-primary" />
-                <span>Each AI generation uses ~5,000 credits. Subscribe for $10/month (500k credits) — auto top-up at $25 if balance hits zero.</span>
+                <span>Credits scale with usage (5× Anthropic cost). Subscribe for $25/month (1.25M credits) — auto top-up at $25 if balance hits zero.</span>
               </div>
               {isAdmin && (
                 <button

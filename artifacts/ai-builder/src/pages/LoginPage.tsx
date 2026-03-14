@@ -33,10 +33,10 @@ const PRICING = [
   },
   {
     name: "Monthly Plan",
-    price: "$10",
+    price: "$25",
     period: "/ month",
-    credits: "500,000",
-    requests: "~100",
+    credits: "1,250,000",
+    requests: "~250",
     badge: "Most popular",
     color: "border-primary",
     headerBg: "bg-primary/10",
@@ -44,7 +44,7 @@ const PRICING = [
     ctaStyle: "bg-primary hover:bg-primary/90 text-primary-foreground",
     noCard: false,
     features: [
-      "500,000 AI credits / month",
+      "1,250,000 AI credits / month",
       "Auto-renews every month",
       "Card billed automatically",
       "Everything in Free",
@@ -341,7 +341,7 @@ export function LoginPage() {
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">Pricing</p>
             <h2 className="text-3xl md:text-4xl font-bold text-foreground">Simple, usage-based billing.</h2>
             <p className="text-muted-foreground mt-3 max-w-xl mx-auto">
-              $10/month minimum keeps your account active. When credits run out, we automatically
+              $25/month minimum keeps your account active. When credits run out, we automatically
               top up in $25 increments — so you're never interrupted mid-build.
             </p>
           </div>
@@ -415,11 +415,11 @@ export function LoginPage() {
               </div>
               <div className="flex gap-3">
                 <span className="text-xl shrink-0">2️⃣</span>
-                <div><p className="font-medium text-foreground mb-0.5">Subscribe for $10/mo</p><p>Adds 500,000 credits each month. Your card is saved securely for auto-billing.</p></div>
+                <div><p className="font-medium text-foreground mb-0.5">Subscribe for $25/mo</p><p>Adds 1,250,000 credits each month. Your card is saved securely for auto-billing.</p></div>
               </div>
               <div className="flex gap-3">
                 <span className="text-xl shrink-0">3️⃣</span>
-                <div><p className="font-medium text-foreground mb-0.5">Build without limits</p><p>Each AI generation uses ~5,000 credits (~100 generations/month on base plan).</p></div>
+                <div><p className="font-medium text-foreground mb-0.5">Build without limits</p><p>Credits scale with usage — short prompts cost less, big builds cost more (~250 generations/month on base plan).</p></div>
               </div>
               <div className="flex gap-3">
                 <span className="text-xl shrink-0">4️⃣</span>
