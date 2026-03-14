@@ -1,7 +1,12 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, deploymentsTable, projectFilesTable, projectsTable } from "@workspace/db";
+import { db, deploymentsTable, projectFilesTable, projectsTable, creditLedgerTable } from "@workspace/db";
 import { nanoid } from "nanoid";
+import { getUserBalance, triggerAutoTopup } from "./credits";
+import { isUnlimitedUser } from "../lib/admin";
+
+const DEPLOY_COST = 10000;   // first deploy
+const REDEPLOY_COST = 2000;  // push update to existing deployment
 
 const router: IRouter = Router();
 
@@ -16,6 +21,8 @@ router.get("/projects/:id/deployment", async (req, res) => {
 
 router.post("/projects/:id/deploy", async (req, res) => {
   const projectId = parseInt(req.params.id);
+  const user = (req as any).user;
+  const userId = user?.id as string | undefined;
 
   const [project] = await db
     .select()
@@ -32,21 +39,63 @@ router.post("/projects/:id/deploy", async (req, res) => {
     .from(deploymentsTable)
     .where(eq(deploymentsTable.projectId, projectId));
 
+  const isFirstDeploy = !existing || !existing.isLive;
+  const cost = isFirstDeploy ? DEPLOY_COST : REDEPLOY_COST;
+  const unlimited = isUnlimitedUser(user?.email);
+
+  // Credit check for non-unlimited users
+  if (userId && !unlimited) {
+    const balance = await getUserBalance(userId);
+    if (balance < cost) {
+      res.status(402).json({
+        error: `Insufficient credits. Deploying costs ${cost.toLocaleString()} credits (you have ${balance.toLocaleString()}).`,
+        creditsRequired: cost,
+        creditsAvailable: balance,
+      });
+      return;
+    }
+  }
+
+  let deployment;
   if (existing) {
     const [updated] = await db
       .update(deploymentsTable)
       .set({ isLive: true, updatedAt: new Date() })
       .where(eq(deploymentsTable.id, existing.id))
       .returning();
-    res.json(updated);
+    deployment = updated;
   } else {
     const slug = `pronto-${nanoid(8)}`;
     const [created] = await db
       .insert(deploymentsTable)
       .values({ projectId, slug, isLive: true })
       .returning();
-    res.json(created);
+    deployment = created;
   }
+
+  // Deduct credits
+  if (userId && !unlimited) {
+    await db.insert(creditLedgerTable).values({
+      userId,
+      amount: -cost,
+      type: "deployment",
+      description: `${isFirstDeploy ? "Deploy" : "Redeploy"}: ${project.name}`,
+    });
+
+    const newBalance = await getUserBalance(userId);
+
+    // Auto top-up if balance hits zero
+    if (newBalance <= 0 && user?.stripeCustomerId) {
+      triggerAutoTopup(userId, user.stripeCustomerId).catch((e) =>
+        console.error("Auto top-up failed after deploy:", e)
+      );
+    }
+
+    res.json({ ...deployment, creditsUsed: cost, creditsRemaining: newBalance });
+    return;
+  }
+
+  res.json(deployment);
 });
 
 router.post("/projects/:id/undeploy", async (req, res) => {

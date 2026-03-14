@@ -156,6 +156,81 @@ router.get("/credits/history", async (req, res) => {
   res.json(history);
 });
 
+router.get("/usage", async (req, res) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const userId = req.user.id;
+  const unlimited = isUnlimitedUser(req.user.email);
+
+  await ensureFreeCredits(userId);
+
+  const [allEntries, monthlyRows, byTypeRows, balanceResult] = await Promise.all([
+    // Last 50 entries for the timeline
+    db.execute(sql`
+      SELECT id, type, amount, description, created_at
+      FROM credit_ledger
+      WHERE user_id = ${userId}
+      ORDER BY created_at DESC
+      LIMIT 50
+    `),
+    // Credits used this calendar month
+    db.execute(sql`
+      SELECT COALESCE(SUM(ABS(amount)), 0) AS used
+      FROM credit_ledger
+      WHERE user_id = ${userId}
+        AND amount < 0
+        AND date_trunc('month', created_at) = date_trunc('month', NOW())
+    `),
+    // Breakdown by type (consumed only)
+    db.execute(sql`
+      SELECT
+        type,
+        COUNT(*) AS count,
+        COALESCE(SUM(ABS(amount)), 0) AS total
+      FROM credit_ledger
+      WHERE user_id = ${userId} AND amount < 0
+      GROUP BY type
+      ORDER BY total DESC
+    `),
+    // Current balance
+    db.select({ total: sum(creditLedgerTable.amount) })
+      .from(creditLedgerTable)
+      .where(eq(creditLedgerTable.userId, userId)),
+  ]);
+
+  const balance = unlimited ? null : Number(balanceResult[0]?.total ?? 0);
+  const thisMonthUsed = Number((monthlyRows.rows as any[])[0]?.used ?? 0);
+
+  const breakdown = (byTypeRows.rows as any[]).map((r) => ({
+    type: r.type as string,
+    count: Number(r.count),
+    total: Number(r.total),
+  }));
+
+  const creditCosts: Record<string, number> = {
+    ai_generation: 5000,
+    deployment: 10000,
+    redeploy: 2000,
+  };
+
+  res.json({
+    balance,
+    unlimited,
+    thisMonthUsed,
+    breakdown,
+    creditCosts,
+    history: (allEntries.rows as any[]).map((r) => ({
+      id: r.id,
+      type: r.type,
+      amount: Number(r.amount),
+      description: r.description,
+      createdAt: r.created_at,
+    })),
+  });
+});
+
 const TOPUP_PRICE_ID = "price_1TAcQUGx0FO9OC64MQki3HyT";
 
 router.get("/credits/products", async (_req, res) => {

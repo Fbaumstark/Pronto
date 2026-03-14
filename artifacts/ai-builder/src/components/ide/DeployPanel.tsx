@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Globe, Rocket, Loader2, CheckCircle2, Copy, ExternalLink, X, Link2 } from "lucide-react";
+import { Globe, Rocket, Loader2, CheckCircle2, Copy, ExternalLink, X, Link2, AlertCircle, Zap } from "lucide-react";
 
 interface Deployment {
   id: number;
@@ -22,8 +22,11 @@ export function DeployPanel({ projectId }: DeployPanelProps) {
   const [domainInput, setDomainInput] = useState("");
   const [showDomain, setShowDomain] = useState(false);
   const [isSavingDomain, setIsSavingDomain] = useState(false);
+  const [deployError, setDeployError] = useState<string | null>(null);
 
   const baseUrl = window.location.origin;
+  const isFirstDeploy = !deployment?.isLive;
+  const deployCost = isFirstDeploy ? 10_000 : 2_000;
 
   useEffect(() => {
     fetch(`/api/projects/${projectId}/deployment`)
@@ -37,10 +40,17 @@ export function DeployPanel({ projectId }: DeployPanelProps) {
 
   const deploy = async () => {
     setIsDeploying(true);
+    setDeployError(null);
     try {
       const res = await fetch(`/api/projects/${projectId}/deploy`, { method: "POST" });
       const d = await res.json();
+      if (res.status === 402) {
+        setDeployError(d.error ?? "Insufficient credits to deploy.");
+        return;
+      }
       setDeployment(d);
+    } catch {
+      setDeployError("Deploy failed. Please try again.");
     } finally {
       setIsDeploying(false);
     }
@@ -93,6 +103,12 @@ export function DeployPanel({ projectId }: DeployPanelProps) {
           <p className="text-xs text-muted-foreground leading-relaxed">
             Deploy your app to get a public URL that anyone can visit — no sign-in required.
           </p>
+          {deployError && (
+            <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>{deployError}</span>
+            </div>
+          )}
           <button
             onClick={deploy}
             disabled={isDeploying}
@@ -104,6 +120,10 @@ export function DeployPanel({ projectId }: DeployPanelProps) {
               <><Rocket className="w-4 h-4" /> {deployment ? "Re-deploy" : "Deploy Now"}</>
             )}
           </button>
+          <p className="text-[10px] text-muted-foreground text-center flex items-center justify-center gap-1">
+            <Zap className="w-3 h-3 text-primary" />
+            Costs {deployCost.toLocaleString()} credits
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -171,6 +191,13 @@ export function DeployPanel({ projectId }: DeployPanelProps) {
               </div>
             )}
 
+            {deployError && (
+              <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>{deployError}</span>
+              </div>
+            )}
+
             <div className="flex gap-2">
               <button
                 onClick={deploy}
@@ -178,7 +205,7 @@ export function DeployPanel({ projectId }: DeployPanelProps) {
                 className="flex-1 flex items-center justify-center gap-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium py-2 rounded-lg transition-colors disabled:opacity-60"
               >
                 {isDeploying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Rocket className="w-3 h-3" />}
-                Redeploy
+                Redeploy (2,000 cr)
               </button>
               <button onClick={undeploy} className="flex-1 flex items-center justify-center gap-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-medium py-2 rounded-lg transition-colors">
                 <X className="w-3 h-3" /> Take offline

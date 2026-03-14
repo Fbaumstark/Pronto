@@ -7,6 +7,7 @@ import { Home } from "./pages/Home";
 import { Workspace } from "./pages/Workspace";
 import { LoginPage } from "./pages/LoginPage";
 import { AdminPage } from "./pages/AdminPage";
+import { UsagePage } from "./pages/UsagePage";
 import { useAuth, AuthProvider } from "@workspace/replit-auth-web";
 import { Loader2 } from "lucide-react";
 import { HelpChatWidget } from "@/components/help/HelpChatWidget";
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/project/:id" component={Workspace} />
       <Route path="/admin" component={AdminPage} />
+      <Route path="/usage" component={UsagePage} />
       <Route component={NotFound} />
     </Switch>
   );

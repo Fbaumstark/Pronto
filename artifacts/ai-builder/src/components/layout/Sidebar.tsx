@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useListProjects, useCreateProject, useDeleteProject } from "@workspace/api-client-react";
-import { Plus, FolderGit2, Trash2, Loader2, X, Settings, LogOut, Coins, ChevronDown, ShoppingCart, Zap, ShieldCheck } from "lucide-react";
+import { Plus, FolderGit2, Trash2, Loader2, X, Settings, LogOut, Coins, ChevronDown, ShoppingCart, Zap, ShieldCheck, BarChart2 } from "lucide-react";
 import { ProntoLogoMark } from "@/components/ProntoLogo";
 import { motion, AnimatePresence } from "framer-motion";
 import { SettingsModal } from "./SettingsModal";
@@ -376,6 +376,18 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
 
       <div className="p-4 border-t border-border/50 space-y-2">
         <CreditsDisplay onBuyCredits={() => setShowBuyCredits(true)} />
+
+        <Link href="/usage">
+          <button className="w-full flex items-center gap-3 px-2 py-2 hover:bg-muted/50 rounded-xl cursor-pointer transition-colors text-left">
+            <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+              <BarChart2 className="w-4 h-4 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">Usage</p>
+              <p className="text-xs text-muted-foreground truncate">Credits &amp; transaction history</p>
+            </div>
+          </button>
+        </Link>
 
         {user?.email === "frank@tray-iq.com" && (
           <Link href="/admin">
