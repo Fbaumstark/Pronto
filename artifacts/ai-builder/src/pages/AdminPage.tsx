@@ -118,27 +118,25 @@ export function AdminPage() {
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
       <div className="border-b border-border/50 bg-card/50 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
-          <button onClick={() => setLocation("/")} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-2 sm:gap-4">
+          <button onClick={() => setLocation("/")} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0">
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <ProntoLogoMark size={28} />
-          <div>
+          <ProntoLogoMark size={26} className="shrink-0" />
+          <div className="min-w-0">
             <span className="text-sm font-bold text-foreground leading-none block">Pronto</span>
-            <ProntoTagline />
+            <ProntoTagline className="hidden sm:block" />
           </div>
-          <div className="h-4 border-l border-border/50 mx-1" />
-          <div>
-            <span className="text-xs font-semibold text-muted-foreground">Admin</span>
-          </div>
-          <div className="ml-auto">
+          <div className="h-4 border-l border-border/50 mx-0.5 sm:mx-1 shrink-0" />
+          <span className="text-xs font-semibold text-muted-foreground shrink-0">Admin</span>
+          <div className="ml-auto shrink-0">
             <button
               onClick={fetchStats}
               disabled={loading}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground bg-muted/50 hover:bg-muted border border-border/50 px-3 py-1.5 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground bg-muted/50 hover:bg-muted border border-border/50 px-2.5 sm:px-3 py-1.5 rounded-lg transition-colors"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-              Refresh
+              <span className="hidden sm:inline">Refresh</span>
             </button>
           </div>
         </div>

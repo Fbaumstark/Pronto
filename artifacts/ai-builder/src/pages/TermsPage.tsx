@@ -7,25 +7,25 @@ export default function TermsPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="sticky top-0 z-10 border-b border-border/50 bg-background/90 backdrop-blur">
-        <div className="max-w-4xl mx-auto px-6 h-14 flex items-center gap-3">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => setLocation("/")}
-            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <ProntoLogoMark size={28} />
-          <div>
+          <ProntoLogoMark size={26} className="shrink-0" />
+          <div className="min-w-0">
             <span className="font-display font-bold text-sm text-foreground leading-none">Pronto</span>
-            <ProntoTagline className="mt-0.5" />
+            <ProntoTagline className="mt-0.5 hidden sm:block" />
           </div>
         </div>
       </div>
-      <div className="max-w-4xl mx-auto px-6 py-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
 
         <div className="flex items-center gap-3 mb-2">
-          <Shield className="w-7 h-7 text-primary" />
-          <h1 className="text-3xl font-bold">Terms of Service</h1>
+          <Shield className="w-6 h-6 sm:w-7 sm:h-7 text-primary shrink-0" />
+          <h1 className="text-2xl sm:text-3xl font-bold">Terms of Service</h1>
         </div>
         <p className="text-sm text-muted-foreground mb-10">
           Last updated: March 14, 2026 &nbsp;·&nbsp; Effective immediately upon account creation

@@ -212,22 +212,24 @@ export function LoginPage() {
 
       {/* ── NAVBAR ── */}
       <nav className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <ProntoLogoMark size={36} />
-            <div>
-              <span className="font-display font-bold text-lg text-foreground leading-none">Pronto</span>
-              <ProntoTagline className="mt-0.5" />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <ProntoLogoMark size={30} className="shrink-0" />
+            <div className="min-w-0">
+              <span className="font-display font-bold text-base sm:text-lg text-foreground leading-none">Pronto</span>
+              <ProntoTagline className="mt-0.5 hidden sm:block" />
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             <button onClick={() => { setShowSignInModal(true); }}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5">
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2.5 sm:px-3 py-1.5">
               Sign in
             </button>
             <button onClick={scrollToSignup}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold px-4 py-2 rounded-xl transition-colors flex items-center gap-1.5">
-              Get started free <ArrowRight className="w-3.5 h-3.5" />
+              className="bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition-colors flex items-center gap-1.5 whitespace-nowrap">
+              <span className="hidden sm:inline">Get started free</span>
+              <span className="sm:hidden">Start free</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -236,10 +238,12 @@ export function LoginPage() {
       {/* ── HERO ── */}
       <section className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-12 md:pt-24 md:pb-20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          <div className="space-y-6 text-center lg:text-left">
-            <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 text-sm text-primary font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              50,000 free credits. No card required.
+          <div className="space-y-5 sm:space-y-6 text-center lg:text-left">
+            <div className="flex justify-center lg:justify-start">
+              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 text-sm text-primary font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                50,000 free credits. No card required.
+              </div>
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-display font-bold tracking-tight leading-[1.05]">
               <span className="text-foreground">Build apps with</span>
@@ -261,16 +265,16 @@ export function LoginPage() {
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <button onClick={scrollToSignup}
-                className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 py-3 rounded-xl text-base transition-all shadow-lg shadow-primary/25 hover:scale-[1.02]">
+                className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 py-3.5 rounded-xl text-base transition-all shadow-lg shadow-primary/25 hover:scale-[1.02] w-full sm:w-auto">
                 Start building free <ArrowRight className="w-4 h-4" />
               </button>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground px-4 py-3 bg-muted/30 rounded-xl border border-border/50">
+              <div className="flex items-center justify-center sm:justify-start gap-2 text-sm text-muted-foreground px-4 py-3 bg-muted/30 rounded-xl border border-border/50">
                 <Check className="w-4 h-4 text-green-400 shrink-0" />
                 50,000 credits free — no card required
               </div>
             </div>
-            <div className="flex items-center gap-6 pt-2">
-              {[["⚡", "Real-time generation"], ["🔒", "Secure sandbox"], ["🚀", "Instant deploy"]].map(([emoji, label]) => (
+            <div className="flex items-center justify-center lg:justify-start gap-4 sm:gap-6 pt-2 flex-wrap">
+              {[["⚡", "Real-time"], ["🔒", "Secure sandbox"], ["🚀", "Instant deploy"]].map(([emoji, label]) => (
                 <div key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span>{emoji}</span><span>{label}</span>
                 </div>
@@ -381,10 +385,10 @@ export function LoginPage() {
           </div>
 
           {/* Competitor callout */}
-          <div className="flex items-center justify-center gap-3 mb-10 mt-6">
-            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-full px-4 py-2 text-sm text-green-400 font-medium">
-              <Check className="w-4 h-4" />
-              10x less expensive than Replit Agent ($25/mo subscription)
+          <div className="flex items-center justify-center mb-10 mt-6 px-2">
+            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-2xl sm:rounded-full px-4 py-2 text-sm text-green-400 font-medium text-center">
+              <Check className="w-4 h-4 shrink-0" />
+              <span>10× less expensive than Replit Agent<span className="hidden sm:inline"> ($25/mo subscription)</span></span>
             </div>
           </div>
 

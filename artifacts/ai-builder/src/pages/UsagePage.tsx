@@ -146,14 +146,14 @@ export function UsagePage() {
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center gap-3">
           <button
             onClick={() => setLocation("/")}
-            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <ProntoLogoMark size={26} />
-          <div className="flex-1">
+          <ProntoLogoMark size={26} className="shrink-0" />
+          <div className="flex-1 min-w-0">
             <span className="text-sm font-bold text-foreground leading-none block">Pronto</span>
-            <ProntoTagline />
+            <ProntoTagline className="hidden sm:block" />
           </div>
           <button
             onClick={load}

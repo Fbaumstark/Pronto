@@ -568,10 +568,10 @@ export function Home() {
 
           {/* ── CREDITS STRIP ── */}
           <div className="border-t border-border/40 pt-6">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Zap className="w-3.5 h-3.5 text-primary" />
-                <span>Credits scale with usage (5× Anthropic cost). Subscribe for $25/month (1.25M credits) — auto top-up at $25 if balance hits zero.</span>
+            <div className="flex items-start sm:items-center justify-between gap-2">
+              <div className="flex items-start sm:items-center gap-2 text-xs text-muted-foreground">
+                <Zap className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5 sm:mt-0" />
+                <span>Credits scale with usage. <span className="hidden sm:inline">Subscribe for $25/month (1.25M credits) — auto top-up at $25 if balance hits zero.</span><span className="sm:hidden">$25/month for 1.25M credits.</span></span>
               </div>
               {isAdmin && (
                 <button
