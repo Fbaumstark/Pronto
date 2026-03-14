@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Loader2, Mail, Lock, User, Check, Zap, ChevronDown,
   Rocket, History, Globe, Code2, MessageSquare, CreditCard,
@@ -235,8 +235,47 @@ export function LoginPage() {
         </div>
       </nav>
 
+      {/* ── HERO VIDEO ── */}
+      <section className="relative pt-8 sm:pt-12 pb-4 px-4 sm:px-6">
+        <div className="max-w-4xl mx-auto">
+          {/* Glow */}
+          <div className="absolute inset-x-0 top-0 h-64 bg-primary/8 blur-3xl pointer-events-none" />
+          <div className="relative">
+            {/* Label */}
+            <div className="flex justify-center mb-4">
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">
+                <span className="w-4 h-px bg-border" />
+                See it in action
+                <span className="w-4 h-px bg-border" />
+              </span>
+            </div>
+            {/* Browser chrome frame */}
+            <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-black/60">
+              {/* Traffic lights bar */}
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-[#141424] border-b border-white/8">
+                <span className="w-3 h-3 rounded-full bg-red-500/80" />
+                <span className="w-3 h-3 rounded-full bg-yellow-500/80" />
+                <span className="w-3 h-3 rounded-full bg-green-500/80" />
+                <div className="flex-1 mx-3 bg-white/5 border border-white/10 rounded-md px-3 py-0.5 text-[11px] text-white/30 font-mono truncate">
+                  app.getpronto.ai — Idea to Website with Pronto
+                </div>
+              </div>
+              {/* Video */}
+              <video
+                src="/pronto-demo.mp4"
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="w-full block bg-[#0f0f1a]"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── HERO ── */}
-      <section className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-12 md:pt-24 md:pb-20">
+      <section className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-10 sm:pt-16 pb-12 md:pt-20 md:pb-20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           <div className="space-y-5 sm:space-y-6 text-center lg:text-left">
             <div className="flex justify-center lg:justify-start">
@@ -297,39 +336,6 @@ export function LoginPage() {
                   <span className="text-xs text-muted-foreground font-medium">{label}</span>
                 </div>
               ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── PRODUCT SCREENSHOT ── */}
-      <section className="border-t border-border/50 py-16 md:py-24 bg-muted/20">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-10">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">See it in action</p>
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground">Your AI co-developer, always on</h2>
-            <p className="text-muted-foreground mt-3 max-w-xl mx-auto">Chat on the left, live code in the center, instant preview on the right — everything synced in real time.</p>
-          </div>
-          {/* Browser chrome frame */}
-          <div className="relative mx-auto max-w-4xl">
-            {/* Glow behind */}
-            <div className="absolute inset-0 -m-4 bg-primary/10 rounded-3xl blur-2xl pointer-events-none" />
-            <div className="relative bg-[#1a1a2e] border border-white/10 rounded-2xl overflow-hidden shadow-2xl shadow-black/50">
-              {/* Fake browser bar */}
-              <div className="flex items-center gap-2 px-4 py-3 bg-[#141424] border-b border-white/8">
-                <span className="w-3 h-3 rounded-full bg-red-500/70" />
-                <span className="w-3 h-3 rounded-full bg-yellow-500/70" />
-                <span className="w-3 h-3 rounded-full bg-green-500/70" />
-                <div className="flex-1 mx-4 bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-[11px] text-white/30 font-mono">
-                  pronto-app.replit.app
-                </div>
-              </div>
-              <img
-                src="/landing/hero-screenshot.png"
-                alt="Pronto builder interface showing AI chat, code editor and live preview"
-                className="w-full h-auto block"
-                loading="lazy"
-              />
             </div>
           </div>
         </div>
