@@ -1,9 +1,21 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, SquareSquare, CheckCircle2, FileCode2 } from "lucide-react";
+import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X } from "lucide-react";
 import { useListProjectMessages } from "@workspace/api-client-react";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import ReactMarkdown from "react-markdown";
 import { cleanResponseForDisplay, cleanStreamingForDisplay } from "@/lib/clean-response";
+
+async function fileToBase64(file: File): Promise<{ imageData: string; imageMimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve({ imageData: result.split(",")[1], imageMimeType: file.type });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 function getStreamingCodeInfo(raw: string) {
   const matches = [...raw.matchAll(/<file name="([^"]+)">/g)];
@@ -25,7 +37,9 @@ interface ChatPanelProps {
 export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
   const draftKey = `chat-draft-${projectId}`;
   const [input, setInput] = useState(() => localStorage.getItem(draftKey) ?? "");
+  const [attachedImage, setAttachedImage] = useState<{ imageData: string; imageMimeType: string; previewUrl: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: messages, isLoading } = useListProjectMessages(projectId);
   const { sendMessage, isStreaming, streamingContent, fileUpdateVersion, stopStream, error } = useChatStream(projectId);
 
@@ -47,19 +61,32 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
 
   const handleInputChange = (val: string) => {
     setInput(val);
-    if (val) {
-      localStorage.setItem(draftKey, val);
-    } else {
-      localStorage.removeItem(draftKey);
-    }
+    if (val) localStorage.setItem(draftKey, val);
+    else localStorage.removeItem(draftKey);
+  };
+
+  const clearImage = () => {
+    if (attachedImage?.previewUrl) URL.revokeObjectURL(attachedImage.previewUrl);
+    setAttachedImage(null);
+  };
+
+  const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert("Image must be under 5 MB."); return; }
+    const { imageData, imageMimeType } = await fileToBase64(file);
+    setAttachedImage({ imageData, imageMimeType, previewUrl: URL.createObjectURL(file) });
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isStreaming) return;
-    sendMessage(input);
+    if ((!input.trim() && !attachedImage) || isStreaming) return;
+    const text = input.trim() || "Make changes based on this image.";
+    sendMessage(text, attachedImage ? { imageData: attachedImage.imageData, imageMimeType: attachedImage.imageMimeType } : undefined);
     setInput("");
     localStorage.removeItem(draftKey);
+    clearImage();
   };
 
   const displayStreamContent = cleanStreamingForDisplay(streamingContent);
@@ -101,11 +128,20 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
                 }`}>
                   {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                 </div>
-                <div className={`max-w-[85%] rounded-2xl px-4 md:px-5 py-3 md:py-4 shadow-sm ${
-                  msg.role === 'user'
-                    ? 'bg-primary/10 border border-primary/20 text-foreground'
-                    : 'bg-muted/30 border border-border text-foreground prose prose-invert prose-sm max-w-none'
-                }`}>
+                <div className={`max-w-[85%] space-y-1.5 ${msg.role === 'user' ? 'items-end flex flex-col' : ''}`}>
+                  {/* Attached image thumbnail */}
+                  {(msg as any)._imagePreview && (
+                    <img
+                      src={(msg as any)._imagePreview}
+                      alt="Attached"
+                      className="max-w-[180px] max-h-[120px] rounded-xl border border-border/60 object-cover shadow-sm"
+                    />
+                  )}
+                  <div className={`rounded-2xl px-4 md:px-5 py-3 md:py-4 shadow-sm ${
+                    msg.role === 'user'
+                      ? 'bg-primary/10 border border-primary/20 text-foreground'
+                      : 'bg-muted/30 border border-border text-foreground prose prose-invert prose-sm max-w-none'
+                  }`}>
                   {msg.role === 'user' ? (
                     <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
                   ) : (
@@ -119,6 +155,7 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
                       )}
                     </>
                   )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -184,6 +221,27 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
       </div>
 
       <div className="p-3 md:p-4 border-t border-border bg-background/50 backdrop-blur-md shrink-0">
+        {/* Attached image preview */}
+        {attachedImage && (
+          <div className="mb-2 flex items-center gap-2.5">
+            <div className="relative inline-flex shrink-0">
+              <img
+                src={attachedImage.previewUrl}
+                alt="Attachment"
+                className="h-14 w-auto max-w-[100px] rounded-lg border border-border object-cover"
+              />
+              <button
+                type="button"
+                onClick={clearImage}
+                className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center shadow w-5 h-5"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground leading-snug">Image attached — Claude will see this with your message</p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="relative">
           <textarea
             value={input}
@@ -194,9 +252,31 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
                 handleSubmit(e);
               }
             }}
-            placeholder="Type a message to build your app..."
-            className="w-full bg-muted/50 border border-border rounded-xl pl-4 pr-14 py-3 min-h-[60px] max-h-[160px] resize-none focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm placeholder:text-muted-foreground/70 transition-all duration-200 shadow-inner"
+            placeholder={attachedImage ? "Describe what to change (or just hit send)…" : "Type a message to build your app..."}
+            className="w-full bg-muted/50 border border-border rounded-xl pl-11 pr-14 py-3 min-h-[60px] max-h-[160px] resize-none focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm placeholder:text-muted-foreground/70 transition-all duration-200 shadow-inner"
           />
+
+          {/* Paperclip / attach button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isStreaming}
+            title="Attach an image"
+            className={`absolute left-3 bottom-3 p-1.5 rounded-lg transition-colors disabled:opacity-40 ${
+              attachedImage ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            onChange={handleImagePick}
+          />
+
           {isStreaming ? (
             <button
               type="button"
@@ -209,7 +289,7 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
           ) : (
             <button
               type="submit"
-              disabled={!input.trim() || isStreaming}
+              disabled={(!input.trim() && !attachedImage) || isStreaming}
               className="absolute right-3 bottom-3 p-2 bg-primary text-primary-foreground rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/25 transition-all duration-200"
             >
               <Send className="w-4 h-4" />

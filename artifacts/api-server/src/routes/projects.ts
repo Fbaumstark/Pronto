@@ -254,13 +254,29 @@ If a user asks you to build anything matching the above, respond with ONLY this 
 All other types of applications are welcome: landing pages, dashboards, games, portfolios, tools, stores, social apps, etc.`;
 
 
-  const chatMessages: { role: "user" | "assistant"; content: string }[] =
+  const chatMessages: { role: "user" | "assistant"; content: any }[] =
     existingMessages.slice(0, -1).map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     }));
 
-  chatMessages.push({ role: "user", content: body.content });
+  // If an image was attached, build a content array (text + image block)
+  if (body.imageData && body.imageMimeType) {
+    const validMimes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    const mime = validMimes.includes(body.imageMimeType) ? body.imageMimeType : "image/jpeg";
+    chatMessages.push({
+      role: "user",
+      content: [
+        {
+          type: "image",
+          source: { type: "base64", media_type: mime, data: body.imageData },
+        },
+        { type: "text", text: body.content || "What changes should I make based on this image?" },
+      ],
+    });
+  } else {
+    chatMessages.push({ role: "user", content: body.content });
+  }
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");

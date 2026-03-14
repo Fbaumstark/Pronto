@@ -201,6 +201,8 @@ export const SendProjectMessageParams = zod.object({
 
 export const SendProjectMessageBody = zod.object({
   content: zod.string(),
+  imageData: zod.string().optional(),
+  imageMimeType: zod.string().optional(),
 });
 
 /**

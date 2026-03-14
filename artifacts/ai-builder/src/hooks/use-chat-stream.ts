@@ -18,7 +18,7 @@ export function useChatStream(projectId: number) {
     }
   };
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string, image?: { imageData: string; imageMimeType: string }) => {
     setIsStreaming(true);
     setStreamingContent('');
     setError(null);
@@ -34,6 +34,7 @@ export function useChatStream(projectId: number) {
         role: 'user',
         content,
         createdAt: new Date().toISOString(),
+        _imagePreview: image?.imageData ? `data:${image.imageMimeType};base64,${image.imageData}` : undefined,
       },
     ]);
 
@@ -41,7 +42,7 @@ export function useChatStream(projectId: number) {
       const res = await fetch(`/api/projects/${projectId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, ...image }),
         signal: abortControllerRef.current.signal,
       });
 
