@@ -3,7 +3,9 @@ import { useLocation } from "wouter";
 import { useAuth } from "@workspace/replit-auth-web";
 import {
   Users, DollarSign, Zap, ArrowLeft, TrendingUp,
-  ChevronUp, ChevronDown, Search, RefreshCw
+  ChevronUp, ChevronDown, Search, RefreshCw,
+  Settings, Key, CheckCircle2, AlertCircle, Loader2,
+  Eye, EyeOff, Globe
 } from "lucide-react";
 import { ProntoLogoMark, ProntoTagline } from "@/components/ProntoLogo";
 import { formatDistanceToNow, format } from "date-fns";
@@ -42,6 +44,212 @@ function StatCard({ icon: Icon, label, value, sub, color }: {
         <p className="text-xs text-muted-foreground font-medium mb-0.5">{label}</p>
         <p className="text-2xl font-bold text-foreground">{value}</p>
         {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+function AIProviderPanel() {
+  const [provider, setProvider] = useState<"replit" | "own">("replit");
+  const [hasOwnKey, setHasOwnKey] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => { setProvider(d.provider); setHasOwnKey(d.hasOwnApiKey); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const save = async () => {
+    if (provider === "own" && !apiKey.trim() && !hasOwnKey) {
+      setErrorMsg("Enter your Anthropic API key first."); setStatus("error"); return;
+    }
+    setSaving(true); setStatus("idle"); setErrorMsg("");
+    try {
+      const body: any = { provider };
+      if (provider === "own" && apiKey.trim()) body.ownApiKey = apiKey.trim();
+      const res = await fetch("/api/settings", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error();
+      const d = await res.json();
+      setHasOwnKey(d.hasOwnApiKey); setApiKey(""); setStatus("success");
+      setTimeout(() => setStatus("idle"), 3000);
+    } catch {
+      setStatus("error"); setErrorMsg("Failed to save. Try again.");
+    } finally { setSaving(false); }
+  };
+
+  const clearKey = async () => {
+    if (!confirm("Remove Anthropic key and switch back to Replit AI?")) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "replit", ownApiKey: "" }),
+      });
+      if (!res.ok) throw new Error();
+      setProvider("replit"); setHasOwnKey(false); setApiKey("");
+      setStatus("success"); setTimeout(() => setStatus("idle"), 3000);
+    } catch { setErrorMsg("Failed to remove key."); setStatus("error"); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="bg-card border border-border/60 rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-border/50">
+        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <Settings className="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-sm font-bold text-foreground">AI Provider</h2>
+          <p className="text-xs text-muted-foreground">Choose which API processes all AI builds</p>
+        </div>
+        {!loading && (
+          <div className={`ml-auto flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${
+            provider === "own"
+              ? "bg-green-500/10 border-green-500/20 text-green-400"
+              : "bg-primary/10 border-primary/20 text-primary"
+          }`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-current" />
+            {provider === "own" ? "Direct Anthropic" : "Replit AI"}
+          </div>
+        )}
+      </div>
+
+      <div className="p-5 space-y-5">
+        {loading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <>
+            {/* Provider toggle */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={() => setProvider("replit")}
+                className={`flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all ${
+                  provider === "replit" ? "border-primary bg-primary/5" : "border-border bg-muted/20 hover:border-border/80"
+                }`}
+              >
+                <div className={`mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${provider === "replit" ? "bg-primary/20" : "bg-muted"}`}>
+                  <Zap className={`w-4 h-4 ${provider === "replit" ? "text-primary" : "text-muted-foreground"}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm text-foreground">Replit AI Integration</span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">2.5× markup</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">No key needed. Replit bills you at 2.5× Anthropic's rate. Zero setup.</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Sonnet: <span className="text-foreground font-mono">$7.50 / $37.50</span> per 1M tokens</p>
+                </div>
+                {provider === "replit" && <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />}
+              </button>
+
+              <button
+                onClick={() => setProvider("own")}
+                className={`flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all ${
+                  provider === "own" ? "border-green-500/60 bg-green-500/5" : "border-border bg-muted/20 hover:border-border/80"
+                }`}
+              >
+                <div className={`mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${provider === "own" ? "bg-green-500/20" : "bg-muted"}`}>
+                  <Key className={`w-4 h-4 ${provider === "own" ? "text-green-400" : "text-muted-foreground"}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm text-foreground">Direct Anthropic API</span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/20">60% cheaper</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Your own key. Billed by Anthropic at published rates.</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Sonnet: <span className="text-foreground font-mono">$3.00 / $15.00</span> per 1M tokens</p>
+                </div>
+                {provider === "own" && <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />}
+              </button>
+            </div>
+
+            {/* API key input — shown when "own" selected */}
+            {provider === "own" && (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-foreground">Anthropic API Key</label>
+                {hasOwnKey && (
+                  <div className="flex items-center gap-2 text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    A key is saved and active. Enter a new one to replace it.
+                  </div>
+                )}
+                <div className="relative">
+                  <input
+                    type={showKey ? "text" : "password"}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder={hasOwnKey ? "Enter new key to replace…" : "sk-ant-…"}
+                    className="w-full bg-background border border-border rounded-xl px-3 py-2.5 pr-10 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                  <button type="button" onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline flex items-center gap-1">
+                    <Globe className="w-3 h-3" />
+                    Get your key at console.anthropic.com
+                  </a>
+                  {hasOwnKey && (
+                    <button onClick={clearKey} disabled={saving} className="text-xs text-destructive hover:underline">
+                      Remove key → switch to Replit AI
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Cost comparison callout */}
+            <div className="bg-muted/30 border border-border/50 rounded-xl p-4 text-xs text-muted-foreground space-y-1.5">
+              <p className="font-semibold text-foreground text-[11px] uppercase tracking-wider mb-2">Cost comparison (Claude Sonnet, per 1M output tokens)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1">Replit AI</p>
+                  <p className="text-foreground font-mono">$37.50 cost to you</p>
+                  <p className="text-muted-foreground">$75.00 charged to user</p>
+                  <p className="text-amber-400 font-semibold">~50% margin</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1">Direct Anthropic</p>
+                  <p className="text-foreground font-mono">$15.00 cost to you</p>
+                  <p className="text-muted-foreground">$75.00 charged to user</p>
+                  <p className="text-green-400 font-semibold">~80% margin</p>
+                </div>
+              </div>
+            </div>
+
+            {status === "error" && errorMsg && (
+              <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />{errorMsg}
+              </div>
+            )}
+            {status === "success" && (
+              <div className="flex items-center gap-2 text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />Provider settings saved.
+              </div>
+            )}
+
+            <button
+              onClick={save}
+              disabled={saving}
+              className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold px-6 py-2.5 rounded-xl transition-colors flex items-center gap-2 disabled:opacity-60"
+            >
+              {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : "Save provider settings"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -143,6 +351,9 @@ export function AdminPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+
+        {/* ── AI Provider Settings ── */}
+        <AIProviderPanel />
 
         {loading && !stats ? (
           <div className="flex items-center justify-center py-24">
