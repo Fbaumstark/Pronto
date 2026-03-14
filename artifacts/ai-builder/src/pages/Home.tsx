@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
 import { useListProjects, useCreateProject } from "@workspace/api-client-react";
+import { useAuth } from "@workspace/replit-auth-web";
 import {
   Plus, Rocket, ExternalLink, Copy, Check,
   Loader2, Clock, FolderGit2, Zap, ArrowUpRight, ChevronRight,
@@ -474,6 +475,8 @@ function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreate
 export function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
+  const { user } = useAuth() as any;
+  const isAdmin = user?.email === "frank@tray-iq.com";
   const [, setLocation] = useLocation();
   const { data: projects, isLoading } = useListProjects();
 
@@ -565,9 +568,19 @@ export function Home() {
 
           {/* ── CREDITS STRIP ── */}
           <div className="border-t border-border/40 pt-6">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Zap className="w-3.5 h-3.5 text-primary" />
-              <span>Each AI generation uses ~5,000 credits. Subscribe for $10/month (500k credits) — auto top-up at $25 if balance hits zero.</span>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Zap className="w-3.5 h-3.5 text-primary" />
+                <span>Each AI generation uses ~5,000 credits. Subscribe for $10/month (500k credits) — auto top-up at $25 if balance hits zero.</span>
+              </div>
+              {isAdmin && (
+                <button
+                  onClick={() => setLocation("/admin")}
+                  className="text-[10px] text-muted-foreground opacity-30 hover:opacity-70 transition-opacity shrink-0"
+                >
+                  admin
+                </button>
+              )}
             </div>
           </div>
 

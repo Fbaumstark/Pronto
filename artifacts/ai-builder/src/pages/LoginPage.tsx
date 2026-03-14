@@ -161,12 +161,23 @@ export function LoginPage() {
   const { setUser } = useAuth() as any;
   const signupRef = useRef<HTMLDivElement>(null);
   const [showSignInModal, setShowSignInModal] = useState(false);
+  const [adminRedirect, setAdminRedirect] = useState(false);
 
   const scrollToSignup = () => {
     signupRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
-  const handleSuccess = (user: any) => setUser?.(user);
+  const handleSuccess = (user: any) => {
+    setUser?.(user);
+    if (adminRedirect) {
+      window.location.href = "/admin";
+    }
+  };
+
+  const openAdminLogin = () => {
+    setAdminRedirect(true);
+    setShowSignInModal(true);
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
@@ -477,7 +488,7 @@ export function LoginPage() {
               <CreditCard className="w-3.5 h-3.5" />
               Payments secured by Stripe
             </div>
-            <a href="/admin" className="opacity-30 hover:opacity-60 transition-opacity text-[10px]">admin</a>
+            <button onClick={openAdminLogin} className="opacity-30 hover:opacity-60 transition-opacity text-[10px] cursor-pointer">admin</button>
           </div>
         </div>
       </footer>
