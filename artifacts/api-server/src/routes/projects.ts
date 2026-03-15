@@ -227,15 +227,21 @@ Current files:
 ${filesContext}
 
 When the user asks you to make changes:
-1. Write a brief 1-2 sentence explanation of what you'll do
-2. Output ALL updated file(s) using this EXACT format:
+1. Identify the MINIMUM set of files that must change to satisfy the request
+2. Write a brief 1-2 sentence explanation of what you'll do and which file(s) you're changing
+3. Output ONLY the file(s) that actually need to be modified — do NOT output files that are unchanged
+
+Use this EXACT format for every file you output:
 
 <file name="filename.ext">
 file content here
 </file>
 
 CRITICAL RULES:
-- Always output COMPLETE file contents — never truncate or use placeholders like "// rest of code"
+- SURGICAL CHANGES ONLY: if the fix is in one file, output only that one file. Never rewrite files that don't need to change.
+- When fixing a bug or making a small update, output ONLY the affected file(s)
+- When building a brand new project from scratch, output all necessary files
+- Always output COMPLETE file contents for each file you DO output — never truncate or use placeholders like "// rest of code"
 - Keep HTML concise: avoid unnecessary comments, blank lines, and verbose attributes
 - Combine CSS and JS inline inside index.html to minimise file count
 - Use efficient, compact CSS (shorthand properties, no redundant rules)
