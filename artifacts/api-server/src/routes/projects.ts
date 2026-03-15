@@ -17,6 +17,7 @@ import {
   UpdateProjectFileBody,
 } from "@workspace/api-zod";
 import { getAIClient } from "../lib/ai-client";
+import type Anthropic from "@anthropic-ai/sdk";
 import { isUnlimitedUser } from "../lib/admin";
 import { ensureFreeCredits, triggerAutoTopup } from "./credits";
 
@@ -73,6 +74,34 @@ async function saveVersion(projectId: number) {
       language: f.language,
     })),
   });
+}
+
+/** Summarise old conversation turns with Haiku so they fit in a tiny budget. */
+async function summarizeOldMessages(
+  anthropic: Anthropic,
+  messages: { role: string; content: string | any }[],
+  projectName: string,
+): Promise<string> {
+  const digest = messages
+    .map((m) => {
+      const text = typeof m.content === "string" ? m.content.slice(0, 400) : "[file/image content]";
+      return `${m.role === "user" ? "User" : "AI"}: ${text}`;
+    })
+    .join("\n\n");
+
+  try {
+    const res = await anthropic.messages.create({
+      model: "claude-3-5-haiku-20241022",
+      max_tokens: 400,
+      messages: [{
+        role: "user",
+        content: `Summarise this "${projectName}" app-building session in 3–5 concise sentences. Cover: what was built, bugs fixed, key design decisions. Be extremely brief.\n\n${digest}`,
+      }],
+    });
+    return (res.content[0] as any)?.text ?? "Earlier conversation history available.";
+  } catch {
+    return "Earlier conversation history available.";
+  }
 }
 
 const router: IRouter = Router();
@@ -286,16 +315,30 @@ If a user asks you to build anything matching the above, respond with ONLY this 
 All other types of applications are welcome: landing pages, dashboards, games, portfolios, tools, stores, social apps, etc.`}`;
 
 
-  // Cap history at 40 DB rows (20 turns) — beyond that old context rarely helps
-  // and input tokens grow linearly with every message sent
-  const MAX_HISTORY_MESSAGES = 40;
-  const recentMessages = existingMessages.slice(-MAX_HISTORY_MESSAGES - 1, -1);
+  // Get AI client early — needed both for optional summarisation and the main stream
+  const { client: anthropicClient, provider: aiProvider } = await getAIClient();
 
-  const chatMessages: { role: "user" | "assistant"; content: any }[] =
-    recentMessages.map((m) => ({
+  // Cap history at 40 rows (20 turns). If older messages exist, summarise them
+  // with Haiku instead of silently dropping them, preserving key context cheaply.
+  const MAX_HISTORY_MESSAGES = 40;
+  const historyRows = existingMessages.slice(0, -1); // exclude the just-inserted user message
+
+  let chatMessages: { role: "user" | "assistant"; content: any }[] = [];
+  if (historyRows.length > MAX_HISTORY_MESSAGES) {
+    const toSummarise = historyRows.slice(0, -MAX_HISTORY_MESSAGES);
+    const recentRows   = historyRows.slice(-MAX_HISTORY_MESSAGES);
+    const summary = await summarizeOldMessages(anthropicClient, toSummarise, project.name);
+    chatMessages = [
+      { role: "user",      content: `[Earlier session summary]\n${summary}` },
+      { role: "assistant", content: "Understood — I have that earlier context." },
+      ...recentRows.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+    ];
+  } else {
+    chatMessages = historyRows.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     }));
+  }
 
   // Build the user message — images, PDFs, text files, or plain text
   if (body.fileContent && body.fileName) {
@@ -393,6 +436,7 @@ All other types of applications are welcome: landing pages, dashboards, games, p
           fileBuf += streamBuf.slice(0, closeIdx);
           streamBuf = streamBuf.slice(closeIdx + 7);
           inFile = false;
+          filesClosed++;
           await flushFile(currentFilename, fileBuf);
           fileBuf = "";
         } else {
@@ -416,19 +460,29 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     if (!res.writableEnded) res.write(": keep-alive\n\n");
   }, 15000);
 
+  // Auto-stop tracking — we break out of the stream loop once we detect Claude
+  // is emitting filler text after all <file> blocks have already been closed.
+  let filesClosed = 0;
+  let charsAfterLastClose = 0;
+  const AUTO_STOP_CHARS = 300;
+
   try {
     // Smart model routing: short surgical edits use Haiku (4× cheaper),
     // complex builds and fresh projects use Sonnet for higher quality output.
     const userWordCount = (body.content ?? "").trim().split(/\s+/).filter(Boolean).length;
     const isSimpleEdit = isSurgical && userWordCount < 100 && files.length > 0;
     const model = isSimpleEdit ? "claude-3-5-haiku-20241022" : "claude-sonnet-4-6";
-    const { client: anthropic, provider: aiProvider } = await getAIClient();
-    const stream = anthropic.messages.stream({
+
+    // anthropicClient and aiProvider were obtained before the SSE headers section.
+    // System prompt is passed as a content-block array so Anthropic can cache it
+    // between successive messages — the large file-context section rarely changes
+    // turn-to-turn and caching slashes input-token costs by ~90% on cache hits.
+    const stream = anthropicClient.messages.stream({
       model,
       max_tokens: isSimpleEdit ? 8000 : 64000,
-      system: systemPrompt,
+      system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }] as any,
       messages: chatMessages,
-    });
+    } as any);
 
     for await (const event of stream) {
       if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
@@ -436,13 +490,36 @@ All other types of applications are welcome: landing pages, dashboards, games, p
         fullResponse += chunk;
         streamBuf += chunk;
         res.write(`data: ${JSON.stringify({ type: "text", content: chunk })}\n\n`);
+        const prevClosed = filesClosed;
         await processStreamBuf();
+
+        // Track how many chars accumulate after the last </file> close.
+        // If Claude keeps generating prose after all files are done, stop early.
+        if (filesClosed > 0 && !inFile) {
+          if (filesClosed > prevClosed) {
+            charsAfterLastClose = 0; // just closed a file, reset counter
+          } else {
+            charsAfterLastClose += chunk.length;
+          }
+          if (charsAfterLastClose > AUTO_STOP_CHARS) {
+            break; // stop streaming — all file content already received
+          }
+        }
       }
     }
 
-    const finalMsg = await stream.finalMessage();
-    const inputTokens  = finalMsg.usage?.input_tokens  ?? 0;
-    const outputTokens = finalMsg.usage?.output_tokens ?? 0;
+    // Get token usage — if we broke out early (auto-stop) the stream may not have
+    // a message_stop event yet; fall back to estimation from response length.
+    let inputTokens = 0;
+    let outputTokens = 0;
+    try {
+      const finalMsg = await stream.finalMessage();
+      inputTokens  = finalMsg.usage?.input_tokens  ?? 0;
+      outputTokens = finalMsg.usage?.output_tokens ?? 0;
+    } catch {
+      // Early-stop path: estimate tokens from accumulated text (~4 chars/token)
+      outputTokens = Math.ceil(fullResponse.length / 4);
+    }
     const creditsUsed  = calculateCredits(model, inputTokens, outputTokens);
 
     console.log(`[credits] model=${model} in=${inputTokens} out=${outputTokens} credits=${creditsUsed}`);
