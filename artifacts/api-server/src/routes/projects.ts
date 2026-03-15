@@ -286,8 +286,13 @@ If a user asks you to build anything matching the above, respond with ONLY this 
 All other types of applications are welcome: landing pages, dashboards, games, portfolios, tools, stores, social apps, etc.`}`;
 
 
+  // Cap history at 40 DB rows (20 turns) — beyond that old context rarely helps
+  // and input tokens grow linearly with every message sent
+  const MAX_HISTORY_MESSAGES = 40;
+  const recentMessages = existingMessages.slice(-MAX_HISTORY_MESSAGES - 1, -1);
+
   const chatMessages: { role: "user" | "assistant"; content: any }[] =
-    existingMessages.slice(0, -1).map((m) => ({
+    recentMessages.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     }));
@@ -412,11 +417,15 @@ All other types of applications are welcome: landing pages, dashboards, games, p
   }, 15000);
 
   try {
-    const model = "claude-sonnet-4-6";
+    // Smart model routing: short surgical edits use Haiku (4× cheaper),
+    // complex builds and fresh projects use Sonnet for higher quality output.
+    const userWordCount = (body.content ?? "").trim().split(/\s+/).filter(Boolean).length;
+    const isSimpleEdit = isSurgical && userWordCount < 100 && files.length > 0;
+    const model = isSimpleEdit ? "claude-3-5-haiku-20241022" : "claude-sonnet-4-6";
     const { client: anthropic, provider: aiProvider } = await getAIClient();
     const stream = anthropic.messages.stream({
       model,
-      max_tokens: 64000,
+      max_tokens: isSimpleEdit ? 8000 : 64000,
       system: systemPrompt,
       messages: chatMessages,
     });

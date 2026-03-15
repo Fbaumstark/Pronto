@@ -90,9 +90,9 @@ router.post("/help", async (req, res) => {
   res.flushHeaders();
 
   try {
-    const client = await getAIClient();
+    const { client } = await getAIClient();
     const stream = client.messages.stream({
-      model: "claude-opus-4-5",
+      model: "claude-3-5-haiku-20241022",
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
