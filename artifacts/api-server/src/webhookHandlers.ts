@@ -11,14 +11,34 @@ async function getUserIdForCustomer(customerId: string): Promise<string | null> 
   return user?.id ?? null;
 }
 
+async function getUserIdByEmail(email: string): Promise<string | null> {
+  const [user] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.email, email));
+  return user?.id ?? null;
+}
+
 async function addCreditsForCheckout(sessionId: string) {
   try {
     const stripe = await getUncachableStripeClient();
     const session = await stripe.retrieveCheckoutSession(sessionId);
 
-    const userId = session.metadata?.userId;
+    // Primary: userId embedded in session metadata (in-app checkout flow)
+    // Fallback: look up by email (Stripe Payment Link flow — no userId in metadata)
+    let userId = session.metadata?.userId ?? null;
     if (!userId) {
-      console.warn("No userId in checkout session metadata:", sessionId);
+      const email = session.customer_details?.email ?? session.customer_email ?? null;
+      if (email) {
+        userId = await getUserIdByEmail(email);
+        if (userId) {
+          console.log(`[webhook] Resolved userId by email (payment link flow): ${email}`);
+        }
+      }
+    }
+    if (!userId) {
+      console.warn("Could not identify user for checkout session:", sessionId,
+        "— no userId in metadata and no matching email in DB.");
       return;
     }
 

@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
-import { X, Loader2, ShoppingCart } from "lucide-react";
+import { X, Loader2, ShoppingCart, ExternalLink } from "lucide-react";
 import { EmbeddedCheckoutModal } from "./EmbeddedCheckoutModal";
+
+const PAYMENT_LINK_URL = import.meta.env.VITE_STRIPE_PAYMENT_LINK_URL as string | undefined;
 
 interface CreditProduct {
   product_id: string;
@@ -112,6 +114,20 @@ export function BuyCreditsModal({ onClose, heading = "Buy Credits", subheading }
             );
           })}
         </div>
+
+        {PAYMENT_LINK_URL && (
+          <div className="mt-3 pt-3 border-t border-border/40">
+            <a
+              href={PAYMENT_LINK_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground py-2 rounded-lg hover:bg-muted transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Pay via Stripe checkout page
+            </a>
+          </div>
+        )}
 
         <p className="text-xs text-muted-foreground text-center mt-4">
           Your card never leaves this site — secured by Stripe

@@ -13,6 +13,8 @@ import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import { useAuth, AuthProvider } from "@workspace/replit-auth-web";
 import { Loader2 } from "lucide-react";
+import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,6 +26,26 @@ const queryClient = new QueryClient({
 });
 
 const PUBLIC_ROUTES = ["/terms", "/privacy"];
+
+function PaymentSuccessHandler() {
+  const { toast } = useToast();
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("payment") === "success") {
+      toast({
+        title: "Credits added!",
+        description: "Your 1,250,000 AI credits have been added to your account.",
+        duration: 6000,
+      });
+      params.delete("payment");
+      params.delete("session_id");
+      const clean = params.toString();
+      const url = window.location.pathname + (clean ? "?" + clean : "");
+      window.history.replaceState({}, "", url);
+    }
+  }, []);
+  return null;
+}
 
 function Router() {
   return (
@@ -65,6 +87,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <PaymentSuccessHandler />
             <AuthGate>
               <Router />
             </AuthGate>
