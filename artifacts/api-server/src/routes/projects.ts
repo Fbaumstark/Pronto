@@ -242,7 +242,7 @@ CRITICAL RULES:
 - Never apologise or explain that you ran out of space — just write complete files
 - If a feature requires many lines, simplify it rather than truncating
 
-CONTENT POLICY — STRICTLY ENFORCED:
+${unlimited ? "" : `CONTENT POLICY — STRICTLY ENFORCED:
 You are running inside Pronto, an AI-powered app builder. You must REFUSE to build any application that would directly compete with Pronto itself. This includes but is not limited to:
 - AI-powered app builders, website builders, or code generators
 - Natural language to code tools or interfaces
@@ -252,7 +252,7 @@ You are running inside Pronto, an AI-powered app builder. You must REFUSE to bui
 If a user asks you to build anything matching the above, respond with ONLY this message (no file output):
 "Sorry, I can't help build an app that competes with Pronto. This is the one thing I'm not able to create here. Try describing a different kind of app — I can build just about anything else!"
 
-All other types of applications are welcome: landing pages, dashboards, games, portfolios, tools, stores, social apps, etc.`;
+All other types of applications are welcome: landing pages, dashboards, games, portfolios, tools, stores, social apps, etc.`}`;
 
 
   const chatMessages: { role: "user" | "assistant"; content: any }[] =
@@ -261,20 +261,40 @@ All other types of applications are welcome: landing pages, dashboards, games, p
       content: m.content,
     }));
 
-  // If an image was attached, build a content array (text + image block)
-  if (body.imageData && body.imageMimeType) {
-    const validMimes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-    const mime = validMimes.includes(body.imageMimeType) ? body.imageMimeType : "image/jpeg";
-    chatMessages.push({
-      role: "user",
-      content: [
-        {
-          type: "image",
-          source: { type: "base64", media_type: mime, data: body.imageData },
-        },
-        { type: "text", text: body.content || "What changes should I make based on this image?" },
-      ],
-    });
+  // Build the user message — images, PDFs, text files, or plain text
+  if (body.fileContent && body.fileName) {
+    // Text file: include its content inline so Claude can read it
+    const fileBlock = `\n\n<uploaded_file name="${body.fileName}">\n${body.fileContent}\n</uploaded_file>`;
+    chatMessages.push({ role: "user", content: (body.content || "") + fileBlock });
+  } else if (body.imageData && body.imageMimeType) {
+    const imageMimes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    if (body.imageMimeType === "application/pdf") {
+      // PDF: send as document source
+      chatMessages.push({
+        role: "user",
+        content: [
+          {
+            type: "document",
+            source: { type: "base64", media_type: "application/pdf", data: body.imageData },
+            ...(body.fileName ? { title: body.fileName } : {}),
+          },
+          { type: "text", text: body.content || "What changes should I make based on this document?" },
+        ],
+      });
+    } else {
+      // Image: use vision
+      const mime = imageMimes.includes(body.imageMimeType) ? body.imageMimeType : "image/jpeg";
+      chatMessages.push({
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: { type: "base64", media_type: mime, data: body.imageData },
+          },
+          { type: "text", text: body.content || "What changes should I make based on this image?" },
+        ],
+      });
+    }
   } else {
     chatMessages.push({ role: "user", content: body.content });
   }

@@ -2,6 +2,11 @@ import { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListProjectMessagesQueryKey } from '@workspace/api-client-react';
 
+export type MessageAttachment =
+  | { type: 'image'; imageData: string; imageMimeType: string; previewUrl?: string }
+  | { type: 'pdf';   imageData: string; fileName: string }
+  | { type: 'text';  fileContent: string; fileName: string };
+
 export function useChatStream(projectId: number) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
@@ -19,7 +24,7 @@ export function useChatStream(projectId: number) {
     }
   };
 
-  const sendMessage = async (content: string, image?: { imageData: string; imageMimeType: string; previewUrl?: string }) => {
+  const sendMessage = async (content: string, attachment?: MessageAttachment) => {
     setIsStreaming(true);
     setStreamingContent('');
     setError(null);
@@ -36,18 +41,32 @@ export function useChatStream(projectId: number) {
         role: 'user',
         content,
         createdAt: new Date().toISOString(),
-        // Use the blob previewUrl only — never embed base64 in React state
-        _imagePreview: image?.previewUrl ?? undefined,
+        _imagePreview: attachment?.type === 'image' ? attachment.previewUrl : undefined,
+        _fileName: attachment && attachment.type !== 'image' ? attachment.fileName : undefined,
       },
     ]);
 
-    // Serialize the body (captures imageData/imageMimeType into the string),
-    // then immediately wipe the local references so the large base64 isn't
-    // held in memory any longer than needed.
-    const requestBody = JSON.stringify({ content, imageData: image?.imageData, imageMimeType: image?.imageMimeType });
-    if (image) {
-      (image as any).imageData = null;
-      (image as any).imageMimeType = null;
+    // Build request body
+    const bodyObj: Record<string, any> = { content };
+    if (attachment?.type === 'image') {
+      bodyObj.imageData = attachment.imageData;
+      bodyObj.imageMimeType = attachment.imageMimeType;
+    } else if (attachment?.type === 'pdf') {
+      bodyObj.imageData = attachment.imageData;
+      bodyObj.imageMimeType = 'application/pdf';
+      bodyObj.fileName = attachment.fileName;
+    } else if (attachment?.type === 'text') {
+      bodyObj.fileContent = attachment.fileContent;
+      bodyObj.fileName = attachment.fileName;
+    }
+
+    // Serialize then wipe large base64 from memory
+    const requestBody = JSON.stringify(bodyObj);
+    if (attachment?.type === 'image' || attachment?.type === 'pdf') {
+      (attachment as any).imageData = null;
+    }
+    if (attachment?.type === 'text') {
+      (attachment as any).fileContent = null;
     }
 
     try {
