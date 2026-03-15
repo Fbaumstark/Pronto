@@ -94,7 +94,7 @@ router.post("/help", async (req, res) => {
     // The help system prompt is 100% static — cache it so every turn after the
     // first pays only 10% of normal input-token cost for the ~700-token prompt.
     const stream = client.messages.stream({
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-haiku-4-5",
       max_tokens: 1024,
       system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }] as any,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),

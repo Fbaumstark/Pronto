@@ -29,6 +29,8 @@ const ANTHROPIC_PRICING: Record<string, { input: number; output: number }> = {
   "claude-sonnet-4":            { input: 3.00,  output: 15.00 },
   "claude-3-5-sonnet-20241022": { input: 3.00,  output: 15.00 },
   "claude-3-5-sonnet-20240620": { input: 3.00,  output: 15.00 },
+  "claude-haiku-4-5":           { input: 0.80,  output: 4.00  },
+  "claude-haiku-4":             { input: 0.80,  output: 4.00  },
   "claude-3-5-haiku-20241022":  { input: 0.80,  output: 4.00  },
   "claude-3-opus-20240229":     { input: 15.00, output: 75.00 },
   "claude-3-haiku-20240307":    { input: 0.25,  output: 1.25  },
@@ -91,7 +93,7 @@ async function summarizeOldMessages(
 
   try {
     const res = await anthropic.messages.create({
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-haiku-4-5",
       max_tokens: 400,
       messages: [{
         role: "user",
@@ -500,7 +502,7 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     // Complex builds, fresh projects, and long requests go to Sonnet.
     const userWordCount = (body.content ?? "").trim().split(/\s+/).filter(Boolean).length;
     const isSimpleEdit = isSurgical && userWordCount < 200 && files.length > 0;
-    const model = isSimpleEdit ? "claude-3-5-haiku-20241022" : "claude-sonnet-4-6";
+    const model = isSimpleEdit ? "claude-haiku-4-5" : "claude-sonnet-4-6";
 
     // Tiered thinking budget: scale to actual request complexity rather than a flat
     // 10 K for everything. Thinking tokens are billed at output-token price ($15/MTok)
