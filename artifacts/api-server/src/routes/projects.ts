@@ -498,10 +498,14 @@ All other types of applications are welcome: landing pages, dashboards, games, p
   const AUTO_STOP_CHARS = 300;
 
   try {
-    // Smart model routing: surgical edits under 200 words use Haiku (4× cheaper).
-    // Complex builds, fresh projects, and long requests go to Sonnet.
+    // Smart model routing: surgical edits use Haiku (4× cheaper) only when the
+    // focused file is small enough that Haiku's output limit won't truncate it.
+    // Large files must go to Sonnet which has a 64K output budget — truncation
+    // must NEVER happen because it corrupts the user's code silently.
     const userWordCount = (body.content ?? "").trim().split(/\s+/).filter(Boolean).length;
-    const isSimpleEdit = isSurgical && userWordCount < 200 && files.length > 0;
+    const focusedFileLines = focusedFile ? focusedFile.content.split("\n").length : 0;
+    const isSimpleEdit = isSurgical && userWordCount < 200 && files.length > 0
+      && focusedFileLines < 150; // Haiku output cap — anything bigger routes to Sonnet
     const model = isSimpleEdit ? "claude-haiku-4-5" : "claude-sonnet-4-6";
 
     // Tiered thinking budget: scale to actual request complexity rather than a flat
@@ -576,20 +580,34 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     // a message_stop event yet; fall back to estimation from response length.
     let inputTokens = 0;
     let outputTokens = 0;
+    let stopReason: string | null = null;
     try {
       const finalMsg = await stream.finalMessage();
       inputTokens  = finalMsg.usage?.input_tokens  ?? 0;
       outputTokens = finalMsg.usage?.output_tokens ?? 0;
+      stopReason   = finalMsg.stop_reason ?? null;
     } catch {
       // Early-stop path: estimate tokens from accumulated text (~4 chars/token)
       outputTokens = Math.ceil(fullResponse.length / 4);
     }
     const creditsUsed  = calculateCredits(model, inputTokens, outputTokens);
 
-    console.log(`[credits] model=${model} think=${THINK_BUDGET} in=${inputTokens} out=${outputTokens} credits=${creditsUsed}`);
+    console.log(`[credits] model=${model} think=${THINK_BUDGET} stop=${stopReason} in=${inputTokens} out=${outputTokens} credits=${creditsUsed}`);
 
     if (inFile && fileBuf.trim()) {
-      await flushFile(currentFilename, fileBuf);
+      if (stopReason === "max_tokens") {
+        // The model ran out of output tokens mid-file — flushing a half-written file
+        // would silently corrupt the project. Discard the fragment and tell the user.
+        console.warn(`[truncation] ${currentFilename} was cut off at max_tokens — NOT flushing`);
+        res.write(`data: ${JSON.stringify({
+          type: "error",
+          error: `The file "${currentFilename}" was too large to complete in one generation. ` +
+                 `Please turn off Surgical mode and try again — full mode has a much larger output budget.`,
+        })}\n\n`);
+      } else {
+        // Stream ended normally (end_turn or early auto-stop) — flush what we have
+        await flushFile(currentFilename, fileBuf);
+      }
     }
 
     await db.update(projectsTable).set({ updatedAt: new Date() }).where(eq(projectsTable.id, projectId));
