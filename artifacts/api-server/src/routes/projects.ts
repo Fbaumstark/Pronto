@@ -246,6 +246,35 @@ router.post("/projects/:id/messages", async (req, res) => {
   const focusedFile = body.focusFileId ? files.find((f) => f.id === body.focusFileId) : null;
   const isSurgical = !!(focusedFile && files.length > 0);
 
+  // Files that should never be sent to the model — they waste tokens and add no value.
+  const SKIP_FILENAME_PATTERNS = [
+    /package-lock\.json$/, /yarn\.lock$/, /pnpm-lock\.yaml$/, /\.lock$/,
+    /\.min\.js$/, /\.min\.css$/, /\.map$/, /node_modules/,
+  ];
+  function shouldSkipFile(filename: string, content: string): boolean {
+    if (SKIP_FILENAME_PATTERNS.some((re) => re.test(filename))) return true;
+    // Skip minified single-line blobs (> 5 K chars on one line)
+    if (!content.includes("\n") && content.length > 5000) return true;
+    return false;
+  }
+
+  // For non-surgical mode, truncate files that are very large to head+tail so the
+  // model still understands structure without paying for every middle line.
+  const MAX_FULL_LINES = 300;
+  const HEAD_LINES = 200;
+  const TAIL_LINES = 80;
+  function smartTruncate(filename: string, language: string, content: string): string {
+    const lines = content.split("\n");
+    const header = `=== ${filename} (${language}) ===`;
+    if (lines.length <= MAX_FULL_LINES) return `${header}\n${content}`;
+    const omitted = lines.length - HEAD_LINES - TAIL_LINES;
+    const head = lines.slice(0, HEAD_LINES).join("\n");
+    const tail = lines.slice(-TAIL_LINES).join("\n");
+    return `${header} [${lines.length} lines total — middle ${omitted} lines omitted to save tokens]\n${head}\n\n... [${omitted} lines omitted] ...\n\n${tail}`;
+  }
+
+  const eligibleFiles = files.filter((f) => !shouldSkipFile(f.filename, f.content));
+
   const filesContext = isSurgical
     ? [
         `[SURGICAL EDIT MODE — focused file: ${focusedFile!.filename}]`,
@@ -254,9 +283,9 @@ router.post("/projects/:id/messages", async (req, res) => {
         `=== ${focusedFile!.filename} (${focusedFile!.language}) ===`,
         focusedFile!.content,
         ``,
-        files.filter((f) => f.id !== focusedFile!.id).length > 0
+        eligibleFiles.filter((f) => f.id !== focusedFile!.id).length > 0
           ? `OTHER FILES IN PROJECT (listed for context only — do NOT output these unless the user explicitly asks to change them):\n` +
-            files
+            eligibleFiles
               .filter((f) => f.id !== focusedFile!.id)
               .map((f) => `- ${f.filename} (${f.content.split("\n").length} lines)`)
               .join("\n")
@@ -264,7 +293,7 @@ router.post("/projects/:id/messages", async (req, res) => {
       ]
         .filter(Boolean)
         .join("\n")
-    : files.map((f) => `=== ${f.filename} (${f.language}) ===\n${f.content}`).join("\n\n");
+    : eligibleFiles.map((f) => smartTruncate(f.filename, f.language, f.content)).join("\n\n");
 
   const systemPrompt = `You are an AI coding assistant that builds web applications by modifying project files.
 
@@ -467,26 +496,34 @@ All other types of applications are welcome: landing pages, dashboards, games, p
   const AUTO_STOP_CHARS = 300;
 
   try {
-    // Smart model routing: short surgical edits use Haiku (4× cheaper),
-    // complex builds and fresh projects use Sonnet for higher quality output.
+    // Smart model routing: surgical edits under 200 words use Haiku (4× cheaper).
+    // Complex builds, fresh projects, and long requests go to Sonnet.
     const userWordCount = (body.content ?? "").trim().split(/\s+/).filter(Boolean).length;
-    const isSimpleEdit = isSurgical && userWordCount < 100 && files.length > 0;
+    const isSimpleEdit = isSurgical && userWordCount < 200 && files.length > 0;
     const model = isSimpleEdit ? "claude-3-5-haiku-20241022" : "claude-sonnet-4-6";
 
-    // anthropicClient and aiProvider were obtained before the SSE headers section.
-    // System prompt is passed as a content-block array so Anthropic can cache it
-    // between successive messages — the large file-context section rarely changes
-    // turn-to-turn and caching slashes input-token costs by ~90% on cache hits.
-    //
-    // Extended thinking is enabled for complex (non-simple) builds on Sonnet.
-    // Claude plans its approach before writing a single line of code, which
-    // dramatically improves correctness on multi-file projects and tricky edits.
-    // Thinking tokens count against max_tokens, so we budget 10 k for planning.
+    // Tiered thinking budget: scale to actual request complexity rather than a flat
+    // 10 K for everything. Thinking tokens are billed at output-token price ($15/MTok)
+    // so wasted headroom is expensive. Tiers:
+    //   New project (blank canvas)   → 12 K  (needs full architectural planning)
+    //   Complex request OR big codebase → 8 K
+    //   Short/medium existing-project request → 5 K (most common case)
+    //   Simple surgical edit (Haiku)  → 0  (Haiku doesn't support thinking)
     const useThinking = !isSimpleEdit;
-    const THINK_BUDGET = 10_000;
+    const isNewProject = files.length === 0;
+    const isLargeCodebase = eligibleFiles.length > 5;
+    const isComplexRequest = userWordCount > 150;
+    const THINK_BUDGET = !useThinking
+      ? 0
+      : isNewProject
+        ? 12_000
+        : isComplexRequest || isLargeCodebase
+          ? 8_000
+          : 5_000;
+
     const streamParams: any = {
       model,
-      max_tokens: isSimpleEdit ? 8000 : 64_000 + THINK_BUDGET,
+      max_tokens: isSimpleEdit ? 8_000 : 64_000 + THINK_BUDGET,
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }] as any,
       messages: chatMessages,
       ...(useThinking ? { thinking: { type: "enabled", budget_tokens: THINK_BUDGET } } : {}),
@@ -547,7 +584,7 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     }
     const creditsUsed  = calculateCredits(model, inputTokens, outputTokens);
 
-    console.log(`[credits] model=${model} in=${inputTokens} out=${outputTokens} credits=${creditsUsed}`);
+    console.log(`[credits] model=${model} think=${THINK_BUDGET} in=${inputTokens} out=${outputTokens} credits=${creditsUsed}`);
 
     if (inFile && fileBuf.trim()) {
       await flushFile(currentFilename, fileBuf);
