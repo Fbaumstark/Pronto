@@ -477,14 +477,39 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     // System prompt is passed as a content-block array so Anthropic can cache it
     // between successive messages — the large file-context section rarely changes
     // turn-to-turn and caching slashes input-token costs by ~90% on cache hits.
-    const stream = anthropicClient.messages.stream({
+    //
+    // Extended thinking is enabled for complex (non-simple) builds on Sonnet.
+    // Claude plans its approach before writing a single line of code, which
+    // dramatically improves correctness on multi-file projects and tricky edits.
+    // Thinking tokens count against max_tokens, so we budget 10 k for planning.
+    const useThinking = !isSimpleEdit;
+    const THINK_BUDGET = 10_000;
+    const streamParams: any = {
       model,
-      max_tokens: isSimpleEdit ? 8000 : 64000,
+      max_tokens: isSimpleEdit ? 8000 : 64_000 + THINK_BUDGET,
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }] as any,
       messages: chatMessages,
-    } as any);
+      ...(useThinking ? { thinking: { type: "enabled", budget_tokens: THINK_BUDGET } } : {}),
+    };
+    const stream = anthropicClient.messages.stream(streamParams as any);
 
     for await (const event of stream) {
+      // Forward thinking blocks to the client so it can display a planning indicator
+      if (event.type === "content_block_start" && (event.content_block as any).type === "thinking") {
+        res.write(`data: ${JSON.stringify({ type: "thinking_start" })}\n\n`);
+      }
+
+      if (event.type === "content_block_delta") {
+        const delta = event.delta as any;
+
+        if (delta.type === "thinking_delta") {
+          res.write(`data: ${JSON.stringify({ type: "thinking_delta", content: delta.thinking ?? "" })}\n\n`);
+          continue;
+        }
+
+        if (delta.type !== "text_delta") continue;
+      }
+
       if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
         const chunk = event.delta.text;
         fullResponse += chunk;

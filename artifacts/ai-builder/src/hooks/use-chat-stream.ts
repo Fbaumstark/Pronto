@@ -13,6 +13,14 @@ export function useChatStream(projectId: number) {
   const [error, setError] = useState<string | null>(null);
   const [outOfCredits, setOutOfCredits] = useState(false);
   const [fileUpdateVersion, setFileUpdateVersion] = useState(0);
+
+  // Extended thinking state
+  const [isThinking, setIsThinking] = useState(false);
+  const [thinkingContent, setThinkingContent] = useState('');
+  const [thinkingSeconds, setThinkingSeconds] = useState(0);
+  const thinkingStartRef = useRef<number>(0);
+  const isThinkingRef = useRef(false);
+
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -29,6 +37,10 @@ export function useChatStream(projectId: number) {
     setStreamingContent('');
     setError(null);
     setOutOfCredits(false);
+    setIsThinking(false);
+    setThinkingContent('');
+    setThinkingSeconds(0);
+    isThinkingRef.current = false;
 
     abortControllerRef.current = new AbortController();
 
@@ -107,7 +119,24 @@ export function useChatStream(projectId: number) {
           try {
             const data = JSON.parse(dataStr);
 
+            if (data.type === 'thinking_start') {
+              setIsThinking(true);
+              isThinkingRef.current = true;
+              thinkingStartRef.current = Date.now();
+              setThinkingContent('');
+            }
+
+            if (data.type === 'thinking_delta') {
+              setThinkingContent((prev) => prev + (data.content || ''));
+            }
+
             if (data.type === 'text') {
+              // First text chunk means thinking is done
+              if (isThinkingRef.current) {
+                isThinkingRef.current = false;
+                setIsThinking(false);
+                setThinkingSeconds(Math.round((Date.now() - thinkingStartRef.current) / 1000));
+              }
               setStreamingContent((prev) => prev + (data.content || ''));
             }
 
@@ -134,10 +163,24 @@ export function useChatStream(projectId: number) {
       }
     } finally {
       setIsStreaming(false);
+      setIsThinking(false);
+      isThinkingRef.current = false;
       setStreamingContent('');
       queryClient.invalidateQueries({ queryKey: getListProjectMessagesQueryKey(projectId) });
     }
   };
 
-  return { sendMessage, isStreaming, streamingContent, fileUpdateVersion, error, outOfCredits, clearOutOfCredits: () => setOutOfCredits(false), stopStream };
+  return {
+    sendMessage,
+    isStreaming,
+    streamingContent,
+    fileUpdateVersion,
+    error,
+    outOfCredits,
+    clearOutOfCredits: () => setOutOfCredits(false),
+    stopStream,
+    isThinking,
+    thinkingContent,
+    thinkingSeconds,
+  };
 }

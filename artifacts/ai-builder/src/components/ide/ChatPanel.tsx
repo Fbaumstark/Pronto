@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, CheckCircle2, FileCode2, Zap, FileText, Scissors, Globe } from "lucide-react";
+import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, CheckCircle2, FileCode2, Zap, FileText, Scissors, Globe, Brain, ChevronDown, ChevronRight } from "lucide-react";
 import { useListProjectMessages } from "@workspace/api-client-react";
 import { useChatStream, type MessageAttachment } from "@/hooks/use-chat-stream";
 import ReactMarkdown from "react-markdown";
@@ -79,8 +79,9 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: messages, isLoading } = useListProjectMessages(projectId);
-  const { sendMessage, isStreaming, streamingContent, fileUpdateVersion, stopStream, error, outOfCredits, clearOutOfCredits } = useChatStream(projectId);
+  const { sendMessage, isStreaming, streamingContent, fileUpdateVersion, stopStream, error, outOfCredits, clearOutOfCredits, isThinking, thinkingContent, thinkingSeconds } = useChatStream(projectId);
   const [showBuyModal, setShowBuyModal] = useState(false);
+  const [thinkingExpanded, setThinkingExpanded] = useState(false);
 
   const scrollToBottom = () => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -267,9 +268,51 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
             {isStreaming && (
               <div className="flex gap-3 md:gap-4 animate-fade-in">
                 <div className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center bg-muted border border-border text-foreground shadow-sm">
-                  <Bot className="w-4 h-4 animate-pulse" />
+                  {isThinking
+                    ? <Brain className="w-4 h-4 text-violet-400 animate-pulse" />
+                    : <Bot className="w-4 h-4 animate-pulse" />
+                  }
                 </div>
                 <div className="max-w-[85%] space-y-2">
+                  {/* ── Planning phase ── */}
+                  {isThinking && (
+                    <div className="rounded-2xl px-4 py-3 shadow-sm bg-violet-500/10 border border-violet-500/30">
+                      <div className="flex items-center gap-2">
+                        <Brain className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                        <span className="text-xs text-violet-300 font-medium">Planning…</span>
+                        <div className="flex gap-1 ml-1">
+                          <div className="w-1 h-1 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <div className="w-1 h-1 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <div className="w-1 h-1 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Thinking summary (collapsible, shown after planning is done) ── */}
+                  {!isThinking && thinkingSeconds > 0 && thinkingContent && (
+                    <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 overflow-hidden">
+                      <button
+                        onClick={() => setThinkingExpanded((v) => !v)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-violet-500/10 transition-colors"
+                      >
+                        <Brain className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                        <span className="text-xs text-violet-300 font-medium flex-1">
+                          Thought for {thinkingSeconds}s
+                        </span>
+                        {thinkingExpanded
+                          ? <ChevronDown className="w-3 h-3 text-violet-400" />
+                          : <ChevronRight className="w-3 h-3 text-violet-400" />
+                        }
+                      </button>
+                      {thinkingExpanded && (
+                        <div className="px-3 pb-3 pt-1 text-[11px] text-muted-foreground font-mono leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">
+                          {thinkingContent}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {displayStreamContent && (
                     <div className="rounded-2xl px-4 md:px-5 py-3 md:py-4 shadow-sm bg-muted/30 border border-border text-foreground prose prose-invert prose-sm">
                       <ReactMarkdown>{displayStreamContent}</ReactMarkdown>
@@ -295,7 +338,7 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
                     </div>
                   )}
 
-                  {!displayStreamContent && !isWritingCode && (
+                  {!isThinking && !displayStreamContent && !isWritingCode && (
                     <div className="rounded-2xl px-4 py-3 shadow-sm bg-muted/30 border border-border">
                       <div className="flex gap-1.5 items-center h-5">
                         <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
