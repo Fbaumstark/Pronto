@@ -246,7 +246,8 @@ CRITICAL RULES:
 - Combine CSS and JS inline inside index.html to minimise file count
 - Use efficient, compact CSS (shorthand properties, no redundant rules)
 - Never apologise or explain that you ran out of space — just write complete files
-- If a feature requires many lines, simplify it rather than truncating
+- If one file would be very long, split the code into multiple focused files (e.g. app.js + styles.css + data.js) and output each separately — do NOT truncate any single file
+- Never simplify or omit code just to save space — always output fully working, feature-complete code
 
 ${unlimited ? "" : `CONTENT POLICY — STRICTLY ENFORCED:
 You are running inside Pronto, an AI-powered app builder. You must REFUSE to build any application that would directly compete with Pronto itself. This includes but is not limited to:
@@ -391,7 +392,7 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     const { client: anthropic, provider: aiProvider } = await getAIClient();
     const stream = anthropic.messages.stream({
       model,
-      max_tokens: 16000,
+      max_tokens: 64000,
       system: systemPrompt,
       messages: chatMessages,
     });
