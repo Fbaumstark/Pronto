@@ -24,7 +24,7 @@ export function useChatStream(projectId: number) {
     }
   };
 
-  const sendMessage = async (content: string, attachment?: MessageAttachment) => {
+  const sendMessage = async (content: string, attachment?: MessageAttachment, focusFileId?: number) => {
     setIsStreaming(true);
     setStreamingContent('');
     setError(null);
@@ -47,7 +47,7 @@ export function useChatStream(projectId: number) {
     ]);
 
     // Build request body
-    const bodyObj: Record<string, any> = { content };
+    const bodyObj: Record<string, any> = { content, ...(focusFileId ? { focusFileId } : {}) };
     if (attachment?.type === 'image') {
       bodyObj.imageData = attachment.imageData;
       bodyObj.imageMimeType = attachment.imageMimeType;

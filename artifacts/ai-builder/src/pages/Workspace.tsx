@@ -146,8 +146,15 @@ export function Workspace() {
   const [activeTab, setActiveTab] = useState<MobileTab>("chat");
   const [rightPanel, setRightPanel] = useState<RightPanelTab>(null);
   const [previewRefreshSignal, setPreviewRefreshSignal] = useState(0);
+  const [activeFileId, setActiveFileId] = useState<number | null>(null);
+  const [activeFileName, setActiveFileName] = useState<string>("");
 
   const handleFileUpdated = () => setPreviewRefreshSignal((v) => v + 1);
+
+  const handleActiveFileChange = (fileId: number, filename: string) => {
+    setActiveFileId(fileId);
+    setActiveFileName(filename);
+  };
 
   const toggleRightPanel = (tab: RightPanelTab) => {
     setRightPanel((prev) => (prev === tab ? null : tab));
@@ -188,10 +195,10 @@ export function Workspace() {
 
         <div className="flex-1 overflow-hidden relative">
           <div className={`absolute inset-0 ${activeTab === "chat" ? "flex flex-col" : "hidden"}`}>
-            <ChatPanel projectId={project.id} onFileUpdated={handleFileUpdated} />
+            <ChatPanel projectId={project.id} onFileUpdated={handleFileUpdated} activeFileId={activeFileId} activeFileName={activeFileName} />
           </div>
           <div className={`absolute inset-0 ${activeTab === "code" ? "flex flex-col" : "hidden"}`}>
-            <EditorPanel projectId={project.id} />
+            <EditorPanel projectId={project.id} activeFileId={activeFileId} onActiveFileChange={handleActiveFileChange} />
           </div>
           <div className={`absolute inset-0 ${activeTab === "preview" ? "flex flex-col" : "hidden"}`}>
             <PreviewPanel projectId={project.id} refreshSignal={previewRefreshSignal} />
@@ -258,7 +265,7 @@ export function Workspace() {
           <div className="flex-1 overflow-hidden">
             <PanelGroup direction="horizontal">
               <Panel defaultSize={35} minSize={25} className="z-10">
-                <ChatPanel projectId={project.id} onFileUpdated={handleFileUpdated} />
+                <ChatPanel projectId={project.id} onFileUpdated={handleFileUpdated} activeFileId={activeFileId} activeFileName={activeFileName} />
               </Panel>
 
               <PanelResizeHandle className="w-1.5 bg-border hover:bg-primary/50 transition-colors cursor-col-resize z-20 flex items-center justify-center">
@@ -268,7 +275,7 @@ export function Workspace() {
               <Panel defaultSize={65} minSize={30}>
                 <PanelGroup direction="vertical">
                   <Panel defaultSize={50} minSize={20}>
-                    <EditorPanel projectId={project.id} />
+                    <EditorPanel projectId={project.id} activeFileId={activeFileId} onActiveFileChange={handleActiveFileChange} />
                   </Panel>
 
                   <PanelResizeHandle className="h-1.5 bg-border hover:bg-primary/50 transition-colors cursor-row-resize z-20 flex items-center justify-center">

@@ -11,15 +11,30 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 type SaveStatus = "saved" | "saving" | "unsaved";
 
-export function EditorPanel({ projectId }: { projectId: number }) {
+interface EditorPanelProps {
+  projectId: number;
+  activeFileId?: number | null;
+  onActiveFileChange?: (fileId: number, filename: string) => void;
+}
+
+export function EditorPanel({ projectId, activeFileId: externalActiveFileId, onActiveFileChange }: EditorPanelProps) {
   const { data: files } = useListProjectFiles(projectId);
   const updateMutation = useUpdateProjectFile();
-  const [activeFileId, setActiveFileId] = useState<number | null>(null);
+  const [internalActiveFileId, setInternalActiveFileId] = useState<number | null>(null);
   const [localCode, setLocalCode] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [showFileList, setShowFileList] = useState(false);
   const debouncedCode = useDebounce(localCode, 1200);
   const isMobile = useIsMobile();
+
+  // Use external activeFileId if provided, otherwise fall back to internal
+  const activeFileId = externalActiveFileId ?? internalActiveFileId;
+
+  const setActiveFileId = (id: number) => {
+    setInternalActiveFileId(id);
+    const file = files?.find(f => f.id === id);
+    if (file) onActiveFileChange?.(id, file.filename);
+  };
 
   const activeFile = files?.find(f => f.id === activeFileId) || files?.[0];
 
@@ -27,7 +42,10 @@ export function EditorPanel({ projectId }: { projectId: number }) {
     if (activeFile) {
       setLocalCode(activeFile.content);
       setSaveStatus("saved");
-      if (!activeFileId) setActiveFileId(activeFile.id);
+      if (!activeFileId) {
+        setInternalActiveFileId(activeFile.id);
+        onActiveFileChange?.(activeFile.id, activeFile.filename);
+      }
     }
   }, [activeFile?.id]);
 

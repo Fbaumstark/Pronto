@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, CheckCircle2, FileCode2, Zap, FileText } from "lucide-react";
+import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, CheckCircle2, FileCode2, Zap, FileText, Scissors, Globe } from "lucide-react";
 import { useListProjectMessages } from "@workspace/api-client-react";
 import { useChatStream, type MessageAttachment } from "@/hooks/use-chat-stream";
 import ReactMarkdown from "react-markdown";
@@ -51,11 +51,25 @@ function getStreamingCodeInfo(raw: string) {
 interface ChatPanelProps {
   projectId: number;
   onFileUpdated?: () => void;
+  activeFileId?: number | null;
+  activeFileName?: string;
 }
 
-export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
+export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileName }: ChatPanelProps) {
   const draftKey = `chat-draft-${projectId}`;
+  const surgicalKey = `surgical-mode-${projectId}`;
   const [input, setInput] = useState(() => localStorage.getItem(draftKey) ?? "");
+  const [surgicalMode, setSurgicalMode] = useState(() => localStorage.getItem(surgicalKey) !== "off");
+
+  const toggleSurgical = () => {
+    setSurgicalMode((prev) => {
+      const next = !prev;
+      localStorage.setItem(surgicalKey, next ? "on" : "off");
+      return next;
+    });
+  };
+
+  const effectiveFocusFileId = surgicalMode && activeFileId ? activeFileId : undefined;
   const [attachedFile, setAttachedFile] = useState<{
     attachment: MessageAttachment;
     previewUrl?: string;
@@ -139,7 +153,7 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
       text: "Here is a file for context.",
     };
     const text = input.trim() || (attachedFile ? defaultPrompts[attachedFile.kind] : "");
-    sendMessage(text, attachedFile?.attachment);
+    sendMessage(text, attachedFile?.attachment, effectiveFocusFileId ?? undefined);
     setInput("");
     localStorage.removeItem(draftKey);
     clearAttachment();
@@ -151,12 +165,39 @@ export function ChatPanel({ projectId, onFileUpdated }: ChatPanelProps) {
 
   return (
     <div className="flex flex-col h-full bg-card/50">
-      <div className="h-14 border-b border-border flex items-center px-6 shrink-0 bg-background/50 backdrop-blur-md">
-        <h3 className="font-display font-semibold flex items-center gap-2">
-          <Bot className="w-5 h-5 text-primary" />
+      <div className="h-14 border-b border-border flex items-center px-4 shrink-0 bg-background/50 backdrop-blur-md gap-3">
+        <h3 className="font-display font-semibold flex items-center gap-2 flex-1 min-w-0">
+          <Bot className="w-5 h-5 text-primary shrink-0" />
           AI Assistant
         </h3>
+        <button
+          onClick={toggleSurgical}
+          title={surgicalMode ? "Surgical mode ON — only editing the focused file. Click to switch to Full mode." : "Full mode — editing all files. Click to switch to Surgical mode."}
+          className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors shrink-0 ${
+            surgicalMode
+              ? "bg-primary/10 border-primary/30 text-primary"
+              : "bg-muted/40 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+          }`}
+        >
+          {surgicalMode ? <Scissors className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
+          {surgicalMode ? "Surgical" : "Full"}
+        </button>
       </div>
+
+      {/* Surgical mode file indicator */}
+      {surgicalMode && activeFileName && (
+        <div className="px-4 py-2 bg-primary/5 border-b border-primary/20 flex items-center gap-2">
+          <Scissors className="w-3 h-3 text-primary shrink-0" />
+          <span className="text-xs text-primary font-medium truncate">Targeting: <span className="font-mono">{activeFileName}</span></span>
+          <span className="text-xs text-muted-foreground ml-auto shrink-0">other files untouched</span>
+        </div>
+      )}
+      {surgicalMode && !activeFileName && (
+        <div className="px-4 py-2 bg-amber-500/5 border-b border-amber-500/20 flex items-center gap-2">
+          <Scissors className="w-3 h-3 text-amber-400 shrink-0" />
+          <span className="text-xs text-amber-400">Open a file in the editor to activate surgical targeting</span>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth" ref={scrollRef}>
         {isLoading ? (

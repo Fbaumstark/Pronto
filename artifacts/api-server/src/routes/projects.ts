@@ -214,9 +214,28 @@ router.post("/projects/:id/messages", async (req, res) => {
     db.select().from(projectMessagesTable).where(eq(projectMessagesTable.projectId, projectId)).orderBy(projectMessagesTable.createdAt),
   ]);
 
-  const filesContext = files
-    .map((f) => `=== ${f.filename} (${f.language}) ===\n${f.content}`)
-    .join("\n\n");
+  const focusedFile = body.focusFileId ? files.find((f) => f.id === body.focusFileId) : null;
+  const isSurgical = !!(focusedFile && files.length > 0);
+
+  const filesContext = isSurgical
+    ? [
+        `[SURGICAL EDIT MODE — focused file: ${focusedFile!.filename}]`,
+        ``,
+        `FOCUSED FILE (full content — this is the file you are editing):`,
+        `=== ${focusedFile!.filename} (${focusedFile!.language}) ===`,
+        focusedFile!.content,
+        ``,
+        files.filter((f) => f.id !== focusedFile!.id).length > 0
+          ? `OTHER FILES IN PROJECT (listed for context only — do NOT output these unless the user explicitly asks to change them):\n` +
+            files
+              .filter((f) => f.id !== focusedFile!.id)
+              .map((f) => `- ${f.filename} (${f.content.split("\n").length} lines)`)
+              .join("\n")
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : files.map((f) => `=== ${f.filename} (${f.language}) ===\n${f.content}`).join("\n\n");
 
   const systemPrompt = `You are an AI coding assistant that builds web applications by modifying project files.
 
@@ -226,10 +245,15 @@ Description: "${project.description}"
 Current files:
 ${filesContext}
 
-When the user asks you to make changes:
+${isSurgical
+  ? `SURGICAL EDIT MODE IS ACTIVE. The user is focused on "${focusedFile!.filename}". You must:
+1. Write a brief 1-2 sentence explanation of what you'll change in ${focusedFile!.filename}
+2. Output ONLY "${focusedFile!.filename}" — do NOT touch other files unless the user specifically asks
+3. Output the COMPLETE updated content of "${focusedFile!.filename}" — never truncate`
+  : `When the user asks you to make changes:
 1. Identify the MINIMUM set of files that must change to satisfy the request
 2. Write a brief 1-2 sentence explanation of what you'll do and which file(s) you're changing
-3. Output ONLY the file(s) that actually need to be modified — do NOT output files that are unchanged
+3. Output ONLY the file(s) that actually need to be modified — do NOT output files that are unchanged`}
 
 Use this EXACT format for every file you output:
 

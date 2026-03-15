@@ -205,6 +205,7 @@ export const SendProjectMessageBody = zod.object({
   content: zod.string(),
   imageData: zod.string().optional(),
   imageMimeType: zod.string().optional(),
+  focusFileId: zod.number().optional(),
 });
 
 /**
