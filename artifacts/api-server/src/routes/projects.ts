@@ -504,8 +504,10 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     // must NEVER happen because it corrupts the user's code silently.
     const userWordCount = (body.content ?? "").trim().split(/\s+/).filter(Boolean).length;
     const focusedFileLines = focusedFile ? focusedFile.content.split("\n").length : 0;
+    const hasAttachment = !!(body.imageData || body.fileContent);
     const isSimpleEdit = isSurgical && userWordCount < 200 && files.length > 0
-      && focusedFileLines < 150; // Haiku output cap — anything bigger routes to Sonnet
+      && focusedFileLines < 150  // Haiku output cap — anything bigger routes to Sonnet
+      && !hasAttachment;          // Images/files always need Sonnet (vision + larger context)
     const model = isSimpleEdit ? "claude-haiku-4-5" : "claude-sonnet-4-6";
 
     // Tiered thinking budget: scale to actual request complexity rather than a flat
