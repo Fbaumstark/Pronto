@@ -231,7 +231,7 @@ router.get("/usage", async (req, res) => {
   });
 });
 
-const TOPUP_PRICE_ID = "price_1TAcQUGx0FO9OC64MQki3HyT";
+const TOPUP_PRICE_ID = "price_1TCOxlGzqri7M6fIMR8rlD3A";
 
 router.get("/credits/products", async (_req, res) => {
   try {
