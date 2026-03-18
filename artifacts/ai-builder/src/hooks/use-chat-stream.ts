@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListProjectMessagesQueryKey } from '@workspace/api-client-react';
 
@@ -7,12 +7,21 @@ export type MessageAttachment =
   | { type: 'pdf';   imageData: string; fileName: string }
   | { type: 'text';  fileContent: string; fileName: string };
 
+export interface RequestCost {
+  credits: number;
+  usd: number;
+}
+
+// $25 / 1,250,000 credits = $0.00002 per credit
+const USD_PER_CREDIT = 25 / 1_250_000;
+
 export function useChatStream(projectId: number) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [outOfCredits, setOutOfCredits] = useState(false);
   const [fileUpdateVersion, setFileUpdateVersion] = useState(0);
+  const [lastRequestCost, setLastRequestCost] = useState<RequestCost | null>(null);
 
   // Extended thinking state
   const [isThinking, setIsThinking] = useState(false);
@@ -20,6 +29,21 @@ export function useChatStream(projectId: number) {
   const [thinkingSeconds, setThinkingSeconds] = useState(0);
   const thinkingStartRef = useRef<number>(0);
   const isThinkingRef = useRef(false);
+
+  // Balance tracking — fetch once on mount, then update from `done` events
+  const balanceRef = useRef<number | null>(null);
+  const isUnlimitedRef = useRef(false);
+
+  useEffect(() => {
+    fetch('/api/credits')
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => {
+        if (!d) return;
+        isUnlimitedRef.current = d.unlimited ?? false;
+        if (typeof d.balance === 'number') balanceRef.current = d.balance;
+      })
+      .catch(() => {});
+  }, []);
 
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -40,6 +64,7 @@ export function useChatStream(projectId: number) {
     setIsThinking(false);
     setThinkingContent('');
     setThinkingSeconds(0);
+    setLastRequestCost(null);
     isThinkingRef.current = false;
 
     abortControllerRef.current = new AbortController();
@@ -131,7 +156,6 @@ export function useChatStream(projectId: number) {
             }
 
             if (data.type === 'text') {
-              // First text chunk means thinking is done
               if (isThinkingRef.current) {
                 isThinkingRef.current = false;
                 setIsThinking(false);
@@ -146,6 +170,25 @@ export function useChatStream(projectId: number) {
 
             if (data.type === 'error') {
               setError(data.error || 'An error occurred');
+            }
+
+            if (data.type === 'done') {
+              const newBalance: number | null = data.creditsRemaining ?? null;
+              const unlimited: boolean = data.unlimited ?? false;
+              isUnlimitedRef.current = unlimited;
+
+              if (!unlimited && typeof newBalance === 'number' && balanceRef.current !== null) {
+                const creditsUsed = balanceRef.current - newBalance;
+                if (creditsUsed > 0) {
+                  setLastRequestCost({
+                    credits: creditsUsed,
+                    usd: creditsUsed * USD_PER_CREDIT,
+                  });
+                }
+              }
+              if (typeof newBalance === 'number') {
+                balanceRef.current = newBalance;
+              }
             }
           } catch {
             // ignore malformed SSE
@@ -182,5 +225,6 @@ export function useChatStream(projectId: number) {
     isThinking,
     thinkingContent,
     thinkingSeconds,
+    lastRequestCost,
   };
 }

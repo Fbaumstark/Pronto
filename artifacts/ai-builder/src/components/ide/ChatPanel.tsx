@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, CheckCircle2, FileCode2, Zap, FileText, Scissors, Globe, Brain, ChevronDown, ChevronRight } from "lucide-react";
+import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, CheckCircle2, FileCode2, Zap, FileText, Scissors, Globe, Brain, ChevronDown, ChevronRight, Coins } from "lucide-react";
 import { useListProjectMessages } from "@workspace/api-client-react";
 import { useChatStream, type MessageAttachment } from "@/hooks/use-chat-stream";
 import ReactMarkdown from "react-markdown";
@@ -8,6 +8,39 @@ import { BuyCreditsModal } from "@/components/payments/BuyCreditsModal";
 
 const IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const TEXT_EXTS = ["txt", "md", "csv", "json", "js", "ts", "jsx", "tsx", "html", "css", "py", "rb", "go", "rs", "java", "c", "cpp", "h", "xml", "yaml", "yml", "toml", "sh", "sql"];
+
+// $25 / 1,250,000 credits = $0.00002/credit (matches server CREDIT_VALUE_USD)
+const USD_PER_CREDIT = 25 / 1_250_000;
+// Sonnet pricing (conservative estimate for pre-send)
+const SONNET_INPUT_USD_PER_TOKEN = 3 / 1_000_000;
+const SONNET_OUTPUT_USD_PER_TOKEN = 15 / 1_000_000;
+const MARKUP = 10;
+
+function formatUsd(usd: number): string {
+  if (usd < 0.01) return "< $0.01";
+  return `$${usd.toFixed(2)}`;
+}
+
+function formatCredits(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
+  return n.toLocaleString();
+}
+
+/**
+ * Estimates the credit cost of a request before it's sent.
+ * Uses Sonnet pricing as a conservative upper bound.
+ * System prompt overhead ≈ 3,000 tokens; typical output ≈ 2,000 tokens.
+ */
+function estimateSendCost(messageText: string): { credits: number; usd: number } {
+  const inputTokens = Math.ceil(messageText.length / 4) + 3_000;
+  const outputTokens = 2_000;
+  const inputCost = inputTokens * SONNET_INPUT_USD_PER_TOKEN;
+  const outputCost = outputTokens * SONNET_OUTPUT_USD_PER_TOKEN;
+  const totalCost = (inputCost + outputCost) * MARKUP;
+  const credits = Math.max(Math.ceil(totalCost / USD_PER_CREDIT), 500);
+  return { credits, usd: credits * USD_PER_CREDIT };
+}
 
 async function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -79,7 +112,12 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: messages, isLoading } = useListProjectMessages(projectId);
-  const { sendMessage, isStreaming, streamingContent, fileUpdateVersion, stopStream, error, outOfCredits, clearOutOfCredits, isThinking, thinkingContent, thinkingSeconds } = useChatStream(projectId);
+  const {
+    sendMessage, isStreaming, streamingContent, fileUpdateVersion,
+    stopStream, error, outOfCredits, clearOutOfCredits,
+    isThinking, thinkingContent, thinkingSeconds,
+    lastRequestCost,
+  } = useChatStream(projectId);
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
 
@@ -163,6 +201,12 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
   const displayStreamContent = cleanStreamingForDisplay(streamingContent);
   const codeInfo = isStreaming ? getStreamingCodeInfo(streamingContent) : null;
   const isWritingCode = !!codeInfo;
+
+  // Pre-send estimate: only show when the user has typed something and is not streaming
+  const trimmedInput = input.trim();
+  const preSendEstimate = !isStreaming && trimmedInput.length > 0
+    ? estimateSendCost(trimmedInput)
+    : null;
 
   return (
     <div className="flex flex-col h-full bg-card/50">
@@ -351,6 +395,18 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
               </div>
             )}
 
+            {/* ── Cost receipt: shown after the last response completes ── */}
+            {!isStreaming && lastRequestCost && (
+              <div className="flex justify-start pl-11 animate-fade-in">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/40 border border-border/50 text-[11px] text-muted-foreground">
+                  <Coins className="w-3 h-3 shrink-0" />
+                  <span>Used <span className="font-medium text-foreground/80">{formatCredits(lastRequestCost.credits)}</span> credits</span>
+                  <span className="text-border">·</span>
+                  <span className="font-medium text-foreground/70">{formatUsd(lastRequestCost.usd)}</span>
+                </div>
+              </div>
+            )}
+
             {outOfCredits && (
               <div className="mx-auto max-w-sm bg-amber-500/10 border border-amber-500/40 rounded-xl px-4 py-4 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
@@ -472,6 +528,14 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
             </button>
           )}
         </form>
+
+        {/* Pre-send cost estimate */}
+        {preSendEstimate && (
+          <div className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground/60 pl-1">
+            <Coins className="w-3 h-3 shrink-0" />
+            <span>Est. ~{formatCredits(preSendEstimate.credits)} credits (~{formatUsd(preSendEstimate.usd)})</span>
+          </div>
+        )}
       </div>
 
       {showBuyModal && (
