@@ -10,7 +10,7 @@ const TOPUP_CREDITS = 1250000;
 const TOPUP_AMOUNT_CENTS = 2500; // $25
 
 // Price IDs from Stripe setup script output
-const MONTHLY_PRICE_ID = "price_1TAhPQGx0FO9OC64Jr8IZj3A"; // $25/month
+const MONTHLY_PRICE_ID = "price_1TCPgqGzqri7M6fIlEy4weP0"; // $25/month
 
 const router: IRouter = Router();
 
