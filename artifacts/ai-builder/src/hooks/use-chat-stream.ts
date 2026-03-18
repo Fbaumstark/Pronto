@@ -15,13 +15,37 @@ export interface RequestCost {
 // $25 / 1,250,000 credits = $0.00002 per credit
 const USD_PER_CREDIT = 25 / 1_250_000;
 
+const COST_STORAGE_KEY = (projectId: number) => `pronto-last-cost-${projectId}`;
+
+function readStoredCost(projectId: number): RequestCost | null {
+  try {
+    const raw = localStorage.getItem(COST_STORAGE_KEY(projectId));
+    return raw ? (JSON.parse(raw) as RequestCost) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function useChatStream(projectId: number) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [outOfCredits, setOutOfCredits] = useState(false);
   const [fileUpdateVersion, setFileUpdateVersion] = useState(0);
-  const [lastRequestCost, setLastRequestCost] = useState<RequestCost | null>(null);
+
+  // Initialise from localStorage so cost survives page refreshes
+  const [lastRequestCost, setLastRequestCostState] = useState<RequestCost | null>(
+    () => readStoredCost(projectId)
+  );
+
+  const setLastRequestCost = (cost: RequestCost | null) => {
+    setLastRequestCostState(cost);
+    if (cost) {
+      try { localStorage.setItem(COST_STORAGE_KEY(projectId), JSON.stringify(cost)); } catch {}
+    } else {
+      try { localStorage.removeItem(COST_STORAGE_KEY(projectId)); } catch {}
+    }
+  };
 
   // Extended thinking state
   const [isThinking, setIsThinking] = useState(false);
