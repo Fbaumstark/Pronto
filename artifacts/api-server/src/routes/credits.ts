@@ -321,15 +321,20 @@ router.post("/credits/checkout", async (req, res) => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
 
     let customerId = user?.stripeCustomerId;
-    if (!customerId) {
+
+    const createFreshCustomer = async () => {
       const customer = await stripe.createCustomer({
         email: userEmail ?? undefined,
         metadata: { userId },
       });
-      customerId = customer.id;
       await db.update(usersTable)
-        .set({ stripeCustomerId: customerId })
+        .set({ stripeCustomerId: customer.id })
         .where(eq(usersTable.id, userId));
+      return customer.id;
+    };
+
+    if (!customerId) {
+      customerId = await createFreshCustomer();
     }
 
     const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? "localhost";
@@ -338,35 +343,42 @@ router.post("/credits/checkout", async (req, res) => {
     const isSubscription = priceId === MONTHLY_PRICE_ID;
     const mode = isSubscription ? "subscription" : "payment";
 
-    let sessionParams: any;
+    const buildSessionParams = (custId: string) => {
+      const params: any = embedded
+        ? {
+            customer: custId,
+            line_items: [{ price: priceId, quantity: 1 }],
+            mode,
+            ui_mode: "embedded",
+            return_url: `${baseUrl}/?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+            metadata: { userId },
+          }
+        : {
+            customer: custId,
+            payment_method_types: ["card"],
+            line_items: [{ price: priceId, quantity: 1 }],
+            mode,
+            success_url: `${baseUrl}/?payment=success`,
+            cancel_url: `${baseUrl}/?payment=cancelled`,
+            metadata: { userId },
+          };
+      if (isSubscription) params.subscription_data = { metadata: { userId } };
+      return params;
+    };
 
-    if (embedded) {
-      // Embedded checkout — stays on our site; no payment_method_types allowed
-      sessionParams = {
-        customer: customerId,
-        line_items: [{ price: priceId, quantity: 1 }],
-        mode,
-        ui_mode: "embedded",
-        return_url: `${baseUrl}/?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-        metadata: { userId },
-      };
-    } else {
-      sessionParams = {
-        customer: customerId,
-        payment_method_types: ["card"],
-        line_items: [{ price: priceId, quantity: 1 }],
-        mode,
-        success_url: `${baseUrl}/?payment=success`,
-        cancel_url: `${baseUrl}/?payment=cancelled`,
-        metadata: { userId },
-      };
+    let session;
+    try {
+      session = await stripe.createCheckoutSession(buildSessionParams(customerId));
+    } catch (err: any) {
+      // Stale customer ID from a previous Stripe account — recover automatically
+      if (err?.raw?.code === "resource_missing" && err?.raw?.param === "customer") {
+        console.warn(`Stale Stripe customer ${customerId} — creating fresh customer for user ${userId}`);
+        customerId = await createFreshCustomer();
+        session = await stripe.createCheckoutSession(buildSessionParams(customerId));
+      } else {
+        throw err;
+      }
     }
-
-    if (isSubscription) {
-      sessionParams.subscription_data = { metadata: { userId } };
-    }
-
-    const session = await stripe.createCheckoutSession(sessionParams);
 
     if (embedded) {
       res.json({ clientSecret: session.client_secret });
