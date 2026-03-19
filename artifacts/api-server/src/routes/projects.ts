@@ -359,6 +359,17 @@ All other types of applications are welcome: landing pages, dashboards, games, p
   // Get AI client early — needed both for optional summarisation and the main stream
   const { client: anthropicClient, provider: aiProvider } = await getAIClient();
 
+  // Strip <file> and <edit> blocks from assistant history messages.
+  // The current file state is already in the system prompt, so re-sending
+  // full file content from previous turns wastes thousands of tokens per request.
+  function stripCodeBlocks(content: any): any {
+    if (typeof content !== "string") return content;
+    return content
+      .replace(/<file name="[^"]*">[\s\S]*?<\/file>/g, "[file output — omitted from history]")
+      .replace(/<edit file="[^"]*">[\s\S]*?<\/edit>/g, "[edit output — omitted from history]")
+      .trim();
+  }
+
   // Cap history at 40 rows (20 turns). If older messages exist, summarise them
   // with Haiku instead of silently dropping them, preserving key context cheaply.
   const MAX_HISTORY_MESSAGES = 40;
@@ -372,12 +383,15 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     chatMessages = [
       { role: "user",      content: `[Earlier session summary]\n${summary}` },
       { role: "assistant", content: "Understood — I have that earlier context." },
-      ...recentRows.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+      ...recentRows.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.role === "assistant" ? stripCodeBlocks(m.content) : m.content,
+      })),
     ];
   } else {
     chatMessages = historyRows.map((m) => ({
       role: m.role as "user" | "assistant",
-      content: m.content,
+      content: m.role === "assistant" ? stripCodeBlocks(m.content) : m.content,
     }));
   }
 
