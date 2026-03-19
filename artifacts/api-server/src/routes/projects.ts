@@ -315,22 +315,32 @@ ${isSurgical
 2. Write a brief 1-2 sentence explanation of what you'll do and which file(s) you're changing
 3. Output ONLY the file(s) that actually need to be modified — do NOT output files that are unchanged`}
 
-Use this EXACT format for every file you output:
+For changes to EXISTING files, use the PATCH format. Only use full-file output for brand-new files.
 
+PATCH FORMAT — use this for any edit to an existing file:
+<edit file="filename.ext">
+<old>
+exact original lines to replace (must match file exactly, whitespace included)
+</old>
+<new>
+replacement lines
+</new>
+</edit>
+
+FULL FILE FORMAT — only for new files or when rebuilding from scratch:
 <file name="filename.ext">
-file content here
+complete file content
 </file>
 
 CRITICAL RULES:
-- SURGICAL CHANGES ONLY: if the fix is in one file, output only that one file. Never rewrite files that don't need to change.
-- When fixing a bug or making a small update, output ONLY the affected file(s)
-- When building a brand new project from scratch, output all necessary files
-- Always output COMPLETE file contents for each file you DO output — never truncate or use placeholders like "// rest of code"
+- PATCH FIRST: always prefer <edit> for changes to existing files — never rewrite an entire file just to change a few lines
+- The <old> block must be copied verbatim from the existing file so it can be found and replaced exactly
+- Multiple changes to the same file = multiple <edit> blocks, one per change
+- For NEW files or complete rewrites (>50% changed), use <file> as normal
+- Never truncate or use placeholders like "// rest of code"
 - Keep HTML concise: avoid unnecessary comments, blank lines, and verbose attributes
 - Combine CSS and JS inline inside index.html to minimise file count
 - Use efficient, compact CSS (shorthand properties, no redundant rules)
-- Never apologise or explain that you ran out of space — just write complete files
-- If one file would be very long, split the code into multiple focused files (e.g. app.js + styles.css + data.js) and output each separately — do NOT truncate any single file
 - Never simplify or omit code just to save space — always output fully working, feature-complete code
 
 ${unlimited ? "" : `CONTENT POLICY — STRICTLY ENFORCED:
@@ -445,27 +455,82 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     }
   }
 
+  async function applyEdit(filename: string, rawBuf: string) {
+    const oldMatch = rawBuf.match(/<old>([\s\S]*?)<\/old>/);
+    const newMatch = rawBuf.match(/<new>([\s\S]*?)<\/new>/);
+    if (!oldMatch || !newMatch) {
+      console.warn(`[edit] Malformed edit block for "${filename}" — skipping`);
+      return;
+    }
+    const oldStr = oldMatch[1].replace(/^\n/, "").replace(/\n$/, "");
+    const newStr = newMatch[1].replace(/^\n/, "").replace(/\n$/, "");
+    const existingFile = files.find((f) => f.filename === filename);
+    if (!existingFile) {
+      console.warn(`[edit] File "${filename}" not found — skipping`);
+      return;
+    }
+    if (!existingFile.content.includes(oldStr)) {
+      console.warn(`[edit] Old string not found in "${filename}" — falling back to no-op`);
+      return;
+    }
+    const updated = existingFile.content.replace(oldStr, newStr);
+    existingFile.content = updated;
+    filesChangedCount++;
+    const language = getLanguage(filename);
+    await db.update(projectFilesTable)
+      .set({ content: updated, language, updatedAt: new Date() })
+      .where(eq(projectFilesTable.id, existingFile.id));
+    res.write(`data: ${JSON.stringify({ type: "file_update", fileId: existingFile.id, filename, content: updated, language })}\n\n`);
+  }
+
   let fullResponse = "";
   let streamBuf = "";
   let inFile = false;
   let currentFilename = "";
   let fileBuf = "";
 
+  // Patch-edit state
+  let inEdit = false;
+  let editFilename = "";
+  let editBuf = "";
+
+  function safeConsume(tag: string): number {
+    // Returns index to split at, holding back any partial tag suffix
+    let splitAt = streamBuf.length;
+    for (let i = 1; i < tag.length; i++) {
+      if (streamBuf.endsWith(tag.slice(0, i))) { splitAt = streamBuf.length - i; break; }
+    }
+    return splitAt;
+  }
+
   async function processStreamBuf() {
     while (true) {
-      if (!inFile) {
-        const openMatch = streamBuf.match(/<file name="([^"]+)">/);
-        if (openMatch) {
-          const idx = streamBuf.indexOf(openMatch[0]);
-          currentFilename = openMatch[1];
-          fileBuf = "";
-          streamBuf = streamBuf.slice(idx + openMatch[0].length);
-          inFile = true;
-        } else {
+      if (!inFile && !inEdit) {
+        // Check for full-file tag
+        const fileMatch = streamBuf.match(/<file name="([^"]+)">/);
+        // Check for patch-edit tag
+        const editMatch = streamBuf.match(/<edit file="([^"]+)">/);
+
+        const fileIdx = fileMatch ? streamBuf.indexOf(fileMatch[0]) : Infinity;
+        const editIdx = editMatch ? streamBuf.indexOf(editMatch[0]) : Infinity;
+
+        if (fileIdx === Infinity && editIdx === Infinity) {
           if (streamBuf.length > 200) streamBuf = streamBuf.slice(-100);
           break;
         }
-      } else {
+
+        if (fileIdx <= editIdx && fileMatch) {
+          currentFilename = fileMatch[1];
+          fileBuf = "";
+          streamBuf = streamBuf.slice(fileIdx + fileMatch[0].length);
+          inFile = true;
+        } else if (editMatch) {
+          editFilename = editMatch[1];
+          editBuf = "";
+          streamBuf = streamBuf.slice(editIdx + editMatch[0].length);
+          inEdit = true;
+        }
+      } else if (inFile) {
         const closeIdx = streamBuf.indexOf("</file>");
         if (closeIdx !== -1) {
           fileBuf += streamBuf.slice(0, closeIdx);
@@ -475,15 +540,24 @@ All other types of applications are welcome: landing pages, dashboards, games, p
           await flushFile(currentFilename, fileBuf);
           fileBuf = "";
         } else {
-          const tail = "</file>";
-          let splitAt = streamBuf.length;
-          for (let i = 1; i < tail.length; i++) {
-            if (streamBuf.endsWith(tail.slice(0, i))) {
-              splitAt = streamBuf.length - i;
-              break;
-            }
-          }
+          const splitAt = safeConsume("</file>");
           fileBuf += streamBuf.slice(0, splitAt);
+          streamBuf = streamBuf.slice(splitAt);
+          break;
+        }
+      } else {
+        // inEdit — accumulate until </edit>
+        const closeIdx = streamBuf.indexOf("</edit>");
+        if (closeIdx !== -1) {
+          editBuf += streamBuf.slice(0, closeIdx);
+          streamBuf = streamBuf.slice(closeIdx + 7);
+          inEdit = false;
+          filesClosed++;
+          await applyEdit(editFilename, editBuf);
+          editBuf = "";
+        } else {
+          const splitAt = safeConsume("</edit>");
+          editBuf += streamBuf.slice(0, splitAt);
           streamBuf = streamBuf.slice(splitAt);
           break;
         }
@@ -599,6 +673,12 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     const creditsUsed  = calculateCredits(model, inputTokens, outputTokens);
 
     console.log(`[credits] model=${model} think=${THINK_BUDGET} stop=${stopReason} in=${inputTokens} out=${outputTokens} credits=${creditsUsed}`);
+
+    if (inEdit && editBuf.trim()) {
+      if (stopReason !== "max_tokens") {
+        await applyEdit(editFilename, editBuf);
+      }
+    }
 
     if (inFile && fileBuf.trim()) {
       if (stopReason === "max_tokens") {
