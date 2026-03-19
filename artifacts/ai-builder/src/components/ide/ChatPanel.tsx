@@ -395,18 +395,6 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
               </div>
             )}
 
-            {/* ── Cost receipt: shown after the last response completes ── */}
-            {!isStreaming && lastRequestCost && (
-              <div className="flex justify-start pl-11 animate-fade-in">
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/40 border border-border/50 text-[11px] text-muted-foreground">
-                  <Coins className="w-3 h-3 shrink-0" />
-                  <span>Used <span className="font-medium text-foreground/80">{formatCredits(lastRequestCost.credits)}</span> credits</span>
-                  <span className="text-border">·</span>
-                  <span className="font-medium text-foreground/70">{formatUsd(lastRequestCost.usd)}</span>
-                </div>
-              </div>
-            )}
-
             {outOfCredits && (
               <div className="mx-auto max-w-sm bg-amber-500/10 border border-amber-500/40 rounded-xl px-4 py-4 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
@@ -529,11 +517,22 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
           )}
         </form>
 
-        {/* Pre-send cost estimate */}
-        {preSendEstimate && (
-          <div className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground/60 pl-1">
-            <Coins className="w-3 h-3 shrink-0" />
-            <span>Est. ~{formatCredits(preSendEstimate.credits)} credits (~{formatUsd(preSendEstimate.usd)})</span>
+        {/* Cost bar: shows last-request cost at rest, switches to estimate while typing */}
+        {!isStreaming && (preSendEstimate || lastRequestCost) && (
+          <div className="mt-1.5 flex items-center gap-1 text-[11px] pl-1">
+            <Coins className="w-3 h-3 shrink-0 text-muted-foreground/50" />
+            {preSendEstimate ? (
+              <span className="text-muted-foreground/60">
+                Est. ~{formatCredits(preSendEstimate.credits)} credits (~{formatUsd(preSendEstimate.usd)})
+              </span>
+            ) : lastRequestCost ? (
+              <span className="text-muted-foreground/70">
+                Last request:{" "}
+                <span className="font-medium text-foreground/70">{formatCredits(lastRequestCost.credits)} credits</span>
+                {" · "}
+                <span className="font-medium text-foreground/60">{formatUsd(lastRequestCost.usd)}</span>
+              </span>
+            ) : null}
           </div>
         )}
       </div>
