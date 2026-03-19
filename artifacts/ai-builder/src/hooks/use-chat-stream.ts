@@ -7,20 +7,25 @@ export type MessageAttachment =
   | { type: 'pdf';   imageData: string; fileName: string }
   | { type: 'text';  fileContent: string; fileName: string };
 
-export interface RequestCost {
+export interface RequestSummary {
   credits: number;
   usd: number;
+  inputTokens: number;
+  outputTokens: number;
+  filesChanged: number;
+  durationMs: number;
+  model: string;
 }
 
 // $25 / 1,250,000 credits = $0.00002 per credit
 const USD_PER_CREDIT = 25 / 1_250_000;
 
-const COST_STORAGE_KEY = (projectId: number) => `pronto-last-cost-${projectId}`;
+const SUMMARY_KEY = (projectId: number) => `pronto-last-summary-${projectId}`;
 
-function readStoredCost(projectId: number): RequestCost | null {
+function readStoredSummary(projectId: number): RequestSummary | null {
   try {
-    const raw = localStorage.getItem(COST_STORAGE_KEY(projectId));
-    return raw ? (JSON.parse(raw) as RequestCost) : null;
+    const raw = localStorage.getItem(SUMMARY_KEY(projectId));
+    return raw ? (JSON.parse(raw) as RequestSummary) : null;
   } catch {
     return null;
   }
@@ -33,17 +38,17 @@ export function useChatStream(projectId: number) {
   const [outOfCredits, setOutOfCredits] = useState(false);
   const [fileUpdateVersion, setFileUpdateVersion] = useState(0);
 
-  // Initialise from localStorage so cost survives page refreshes
-  const [lastRequestCost, setLastRequestCostState] = useState<RequestCost | null>(
-    () => readStoredCost(projectId)
+  // Persisted summary for the last completed request
+  const [lastSummary, setLastSummaryState] = useState<RequestSummary | null>(
+    () => readStoredSummary(projectId)
   );
 
-  const setLastRequestCost = (cost: RequestCost | null) => {
-    setLastRequestCostState(cost);
-    if (cost) {
-      try { localStorage.setItem(COST_STORAGE_KEY(projectId), JSON.stringify(cost)); } catch {}
+  const setLastSummary = (s: RequestSummary | null) => {
+    setLastSummaryState(s);
+    if (s) {
+      try { localStorage.setItem(SUMMARY_KEY(projectId), JSON.stringify(s)); } catch {}
     } else {
-      try { localStorage.removeItem(COST_STORAGE_KEY(projectId)); } catch {}
+      try { localStorage.removeItem(SUMMARY_KEY(projectId)); } catch {}
     }
   };
 
@@ -88,7 +93,7 @@ export function useChatStream(projectId: number) {
     setIsThinking(false);
     setThinkingContent('');
     setThinkingSeconds(0);
-    setLastRequestCost(null);
+    setLastSummary(null);
     isThinkingRef.current = false;
 
     abortControllerRef.current = new AbortController();
@@ -201,15 +206,25 @@ export function useChatStream(projectId: number) {
               const unlimited: boolean = data.unlimited ?? false;
               isUnlimitedRef.current = unlimited;
 
-              if (!unlimited && typeof newBalance === 'number' && balanceRef.current !== null) {
-                const creditsUsed = balanceRef.current - newBalance;
-                if (creditsUsed > 0) {
-                  setLastRequestCost({
-                    credits: creditsUsed,
-                    usd: creditsUsed * USD_PER_CREDIT,
-                  });
-                }
+              // Build the summary from what the server sent back
+              const creditsUsed: number = data.creditsUsed ?? (
+                !unlimited && typeof newBalance === 'number' && balanceRef.current !== null
+                  ? Math.max(0, balanceRef.current - newBalance)
+                  : 0
+              );
+
+              if (creditsUsed > 0 || data.inputTokens) {
+                setLastSummary({
+                  credits: creditsUsed,
+                  usd: creditsUsed * USD_PER_CREDIT,
+                  inputTokens: data.inputTokens ?? 0,
+                  outputTokens: data.outputTokens ?? 0,
+                  filesChanged: data.filesChanged ?? 0,
+                  durationMs: data.durationMs ?? 0,
+                  model: data.model ?? '',
+                });
               }
+
               if (typeof newBalance === 'number') {
                 balanceRef.current = newBalance;
               }
@@ -249,6 +264,6 @@ export function useChatStream(projectId: number) {
     isThinking,
     thinkingContent,
     thinkingSeconds,
-    lastRequestCost,
+    lastSummary,
   };
 }

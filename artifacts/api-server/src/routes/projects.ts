@@ -413,6 +413,9 @@ All other types of applications are welcome: landing pages, dashboards, games, p
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
+  const streamStartTime = Date.now();
+  let filesChangedCount = 0;
+
   const langMap: Record<string, string> = {
     html: "html", css: "css", js: "javascript", ts: "typescript",
     json: "json", md: "markdown", py: "python",
@@ -426,6 +429,7 @@ All other types of applications are welcome: landing pages, dashboards, games, p
   async function flushFile(filename: string, rawContent: string) {
     const content = rawContent.trim();
     if (!content) return;
+    filesChangedCount++;
     const language = getLanguage(filename);
     const existingFile = files.find((f) => f.filename === filename);
     if (existingFile) {
@@ -651,7 +655,18 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     }
 
     const newBalance = unlimited ? null : (userId ? await getUserBalance(userId) : null);
-    res.write(`data: ${JSON.stringify({ type: "done", creditsRemaining: newBalance, unlimited })}\n\n`);
+    const durationMs = Date.now() - streamStartTime;
+    res.write(`data: ${JSON.stringify({
+      type: "done",
+      creditsRemaining: newBalance,
+      unlimited,
+      creditsUsed,
+      inputTokens,
+      outputTokens,
+      filesChanged: filesChangedCount,
+      durationMs,
+      model,
+    })}\n\n`);
     res.end();
   } catch (err) {
     console.error("Streaming error:", err);
