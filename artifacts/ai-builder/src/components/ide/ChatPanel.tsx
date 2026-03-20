@@ -178,7 +178,7 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
     sendMessage, isStreaming, streamingContent, fileUpdateVersion,
     stopStream, error, outOfCredits, clearOutOfCredits,
     isThinking, thinkingContent, thinkingSeconds,
-    lastSummary,
+    lastSummary, wasInterrupted, resumeGeneration,
   } = useChatStream(projectId);
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
@@ -477,8 +477,17 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
             )}
 
             {error && !outOfCredits && (
-              <div className="mx-auto max-w-sm bg-destructive/10 border border-destructive/30 rounded-xl px-4 py-3 text-sm text-destructive text-center">
-                {error}
+              <div className="mx-auto max-w-sm bg-destructive/10 border border-destructive/30 rounded-xl px-4 py-3 text-sm text-destructive text-center space-y-2">
+                <div>{error}</div>
+                {wasInterrupted && (
+                  <button
+                    onClick={resumeGeneration}
+                    className="inline-flex items-center gap-1.5 bg-destructive/20 hover:bg-destructive/30 text-destructive text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Loader2 className="w-3 h-3" />
+                    Resume generation
+                  </button>
+                )}
               </div>
             )}
           </div>

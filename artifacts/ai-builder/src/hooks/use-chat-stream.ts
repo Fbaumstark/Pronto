@@ -37,6 +37,7 @@ export function useChatStream(projectId: number) {
   const [error, setError] = useState<string | null>(null);
   const [outOfCredits, setOutOfCredits] = useState(false);
   const [fileUpdateVersion, setFileUpdateVersion] = useState(0);
+  const [wasInterrupted, setWasInterrupted] = useState(false);
 
   // Persisted summary for the last completed request
   const [lastSummary, setLastSummaryState] = useState<RequestSummary | null>(
@@ -76,6 +77,7 @@ export function useChatStream(projectId: number) {
 
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const receivedDoneRef = useRef(false);
 
   const stopStream = () => {
     if (abortControllerRef.current) {
@@ -85,16 +87,22 @@ export function useChatStream(projectId: number) {
     }
   };
 
+  const resumeGeneration = () => {
+    sendMessage('Please continue from where you left off — complete any unfinished parts.');
+  };
+
   const sendMessage = async (content: string, attachment?: MessageAttachment, focusFileId?: number) => {
     setIsStreaming(true);
     setStreamingContent('');
     setError(null);
     setOutOfCredits(false);
+    setWasInterrupted(false);
     setIsThinking(false);
     setThinkingContent('');
     setThinkingSeconds(0);
     setLastSummary(null);
     isThinkingRef.current = false;
+    receivedDoneRef.current = false;
 
     abortControllerRef.current = new AbortController();
 
@@ -202,6 +210,7 @@ export function useChatStream(projectId: number) {
             }
 
             if (data.type === 'done') {
+              receivedDoneRef.current = true;
               const newBalance: number | null = data.creditsRemaining ?? null;
               const unlimited: boolean = data.unlimited ?? false;
               isUnlimitedRef.current = unlimited;
@@ -239,11 +248,19 @@ export function useChatStream(projectId: number) {
         const msg = err.message || '';
         if (msg === 'Load failed' || msg === 'Failed to fetch' || msg.includes('network')) {
           setError('Connection dropped — your network may have cut out. Please try again.');
+          setWasInterrupted(true);
         } else {
           setError(msg || 'Something went wrong. Please try again.');
+          setWasInterrupted(true);
         }
       }
     } finally {
+      // If the stream closed without a `done` event and wasn't user-aborted,
+      // the server was likely killed mid-generation (e.g. Autoscale cycle).
+      if (!receivedDoneRef.current && abortControllerRef.current !== null) {
+        setWasInterrupted(true);
+        setError('Generation was interrupted — the server restarted mid-response.');
+      }
       setIsStreaming(false);
       setIsThinking(false);
       isThinkingRef.current = false;
@@ -265,5 +282,7 @@ export function useChatStream(projectId: number) {
     thinkingContent,
     thinkingSeconds,
     lastSummary,
+    wasInterrupted,
+    resumeGeneration,
   };
 }
