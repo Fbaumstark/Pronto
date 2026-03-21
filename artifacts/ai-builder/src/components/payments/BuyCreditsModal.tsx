@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { X, Loader2, ShoppingCart, ExternalLink } from "lucide-react";
 import { EmbeddedCheckoutModal } from "./EmbeddedCheckoutModal";
+import { api } from "@/lib/api-base";
 
 const PAYMENT_LINK_URL = import.meta.env.VITE_STRIPE_PAYMENT_LINK_URL as string | undefined;
 
@@ -27,7 +28,7 @@ export function BuyCreditsModal({ onClose, heading = "Buy Credits", subheading }
   const [checkout, setCheckout] = useState<{ priceId: string; productName: string } | null>(null);
 
   useEffect(() => {
-    fetch("/api/credits/products")
+    api("/api/credits/products")
       .then((r) => r.json())
       .then((d) => { setProducts(d.data ?? []); setLoading(false); })
       .catch(() => { setError("Failed to load credit packs"); setLoading(false); });

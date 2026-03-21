@@ -25,10 +25,18 @@ function isUrl(input: RequestInfo | URL): input is URL {
   return typeof URL !== "undefined" && input instanceof URL;
 }
 
+const API_BASE = typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_URL
+  ? (import.meta as any).env.VITE_API_URL.replace(/\/$/, "")
+  : "";
+
 function resolveUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
-  if (isUrl(input)) return input.toString();
-  return input.url;
+  let url: string;
+  if (typeof input === "string") url = input;
+  else if (isUrl(input)) url = input.toString();
+  else url = input.url;
+  // Prefix relative API paths with the configured backend URL
+  if (API_BASE && url.startsWith("/api")) return API_BASE + url;
+  return url;
 }
 
 function mergeHeaders(...sources: Array<HeadersInit | undefined>): Headers {

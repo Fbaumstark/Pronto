@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { History, RotateCcw, Loader2, ChevronRight, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { api } from "@/lib/api-base";
 
 interface Version {
   id: number;
@@ -23,7 +24,7 @@ export function VersionHistoryPanel({ projectId, onRestored }: VersionHistoryPan
   const loadVersions = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/versions`);
+      const res = await api(`/api/projects/${projectId}/versions`);
       const data = await res.json();
       setVersions(data);
     } finally {
@@ -40,7 +41,7 @@ export function VersionHistoryPanel({ projectId, onRestored }: VersionHistoryPan
     if (!confirm("Restore this version? Your current files will be replaced.")) return;
     setRestoring(versionId);
     try {
-      await fetch(`/api/projects/${projectId}/versions/restore/${versionId}`, { method: "POST" });
+      await api(`/api/projects/${projectId}/versions/restore/${versionId}`, { method: "POST" });
       onRestored();
       setIsOpen(false);
       setVersions(null);

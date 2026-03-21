@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { X, Settings, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, Zap, Key } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { api } from "@/lib/api-base";
 
 interface SettingsData {
   provider: "replit" | "own";
@@ -25,7 +26,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   useEffect(() => {
     if (isOpen) {
       setIsLoading(true);
-      fetch("/api/settings")
+      api("/api/settings")
         .then((r) => r.json())
         .then((data: SettingsData) => {
           setSettings(data);
@@ -53,7 +54,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         return;
       }
 
-      const res = await fetch("/api/settings", {
+      const res = await api("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -77,7 +78,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     if (!confirm("Remove your Anthropic API key and switch back to Replit AI?")) return;
     setIsSaving(true);
     try {
-      const res = await fetch("/api/settings", {
+      const res = await api("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider: "replit", ownApiKey: "" }),

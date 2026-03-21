@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { api } from "@/lib/api-base";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
 import { useListProjects, useCreateProject } from "@workspace/api-client-react";
@@ -21,7 +22,7 @@ interface Deployment {
 function useProjectDeployment(projectId: number) {
   const [deployment, setDeployment] = useState<Deployment | null | undefined>(undefined);
   const refetch = () => {
-    fetch(`/api/projects/${projectId}/deployment`)
+    api(`/api/projects/${projectId}/deployment`)
       .then((r) => (r.ok ? r.json() : null))
       .then(setDeployment)
       .catch(() => setDeployment(null));
@@ -109,7 +110,7 @@ function CustomDomainModal({
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/projects/${projectId}/deployment/domain`, {
+      const res = await api(`/api/projects/${projectId}/deployment/domain`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ customDomain: cleaned }),
@@ -283,7 +284,7 @@ function ProjectCard({ project }: { project: any }) {
     e.stopPropagation();
     setDeploying(true);
     try {
-      await fetch(`/api/projects/${project.id}/deploy`, { method: "POST" });
+      await api(`/api/projects/${project.id}/deploy`, { method: "POST" });
       await refetch();
     } finally {
       setDeploying(false);
@@ -387,7 +388,7 @@ function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const createMutation = useCreateProject();
 
   useEffect(() => {
-    fetch("/api/templates")
+    api("/api/templates")
       .then((r) => r.json())
       .then(setTemplates)
       .catch(() => {});

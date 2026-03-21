@@ -8,7 +8,10 @@ import { WebhookHandlers } from "./webhookHandlers";
 
 const app: Express = express();
 
-app.use(cors({ credentials: true, origin: true }));
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim())
+  : true;
+app.use(cors({ credentials: true, origin: allowedOrigins }));
 app.use(cookieParser());
 
 app.post(

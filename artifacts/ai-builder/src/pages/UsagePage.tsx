@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { api } from "@/lib/api-base";
 import {
   ArrowLeft, Zap, Rocket, Bot, RefreshCw, TrendingDown,
   Gift, ShoppingCart, Check, ChevronRight, Info,
@@ -122,7 +123,7 @@ export function UsagePage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/usage", { credentials: "include" });
+      const res = await api("/api/usage", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load");
       setData(await res.json());
     } catch {

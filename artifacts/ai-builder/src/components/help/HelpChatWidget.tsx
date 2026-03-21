@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { X, Send, Loader2, Zap } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { api } from "@/lib/api-base";
 
 interface Message {
   id: string;
@@ -102,7 +103,7 @@ export function HelpChatWidget({ open, onClose }: HelpChatWidgetProps) {
     abortRef.current = new AbortController();
 
     try {
-      const res = await fetch("/api/help", {
+      const res = await api("/api/help", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: history }),

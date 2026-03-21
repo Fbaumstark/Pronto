@@ -8,11 +8,10 @@ import {
   ShieldCheck, Copy, Check, Info
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+import { api } from "@/lib/api-base";
 
 async function fetchSecrets() {
-  const r = await fetch(`${BASE}/api/secrets`, { credentials: "include" });
+  const r = await api(`/api/secrets`, { credentials: "include" });
   if (!r.ok) throw new Error("Failed to fetch secrets");
   return r.json();
 }
@@ -35,7 +34,7 @@ export function SecretsPage() {
 
   const addMutation = useMutation({
     mutationFn: async ({ name, value }: { name: string; value: string }) => {
-      const r = await fetch(`${BASE}/api/secrets`, {
+      const r = await api(`/api/secrets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -56,7 +55,7 @@ export function SecretsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const r = await fetch(`${BASE}/api/secrets/${id}`, { method: "DELETE", credentials: "include" });
+      const r = await api(`/api/secrets/${id}`, { method: "DELETE", credentials: "include" });
       if (!r.ok) throw new Error("Failed to delete");
     },
     onSuccess: () => {

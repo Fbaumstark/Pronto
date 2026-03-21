@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { ProntoLogoMark, ProntoTagline, ProntoNoCodingBadge } from "@/components/ProntoLogo";
+import { api } from "@/lib/api-base";
 
 type Mode = "login" | "register";
 
@@ -95,7 +96,7 @@ function AuthForm({ defaultMode, onSuccess }: { defaultMode: Mode; onSuccess: (u
       const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
       const body: Record<string, string> = { email, password };
       if (mode === "register" && firstName.trim()) body.firstName = firstName.trim();
-      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
+      const res = await api(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Something went wrong"); return; }
       onSuccess(data.user);
@@ -130,7 +131,7 @@ function AuthForm({ defaultMode, onSuccess }: { defaultMode: Mode; onSuccess: (u
         <div className="relative">
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required
-            autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 8 : undefined}
+            autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 4 : undefined}
             className="w-full bg-background border border-border rounded-xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
         </div>
         {mode === "register" && (

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Globe, Rocket, Loader2, CheckCircle2, Copy, ExternalLink, X, Link2, AlertCircle, Zap } from "lucide-react";
+import { api } from "@/lib/api-base";
 
 interface Deployment {
   id: number;
@@ -29,7 +30,7 @@ export function DeployPanel({ projectId }: DeployPanelProps) {
   const deployCost = isFirstDeploy ? 10_000 : 2_000;
 
   useEffect(() => {
-    fetch(`/api/projects/${projectId}/deployment`)
+    api(`/api/projects/${projectId}/deployment`)
       .then((r) => r.json())
       .then((d) => {
         setDeployment(d);
@@ -42,7 +43,7 @@ export function DeployPanel({ projectId }: DeployPanelProps) {
     setIsDeploying(true);
     setDeployError(null);
     try {
-      const res = await fetch(`/api/projects/${projectId}/deploy`, { method: "POST" });
+      const res = await api(`/api/projects/${projectId}/deploy`, { method: "POST" });
       const d = await res.json();
       if (res.status === 402) {
         setDeployError(d.error ?? "Insufficient credits to deploy.");
@@ -58,7 +59,7 @@ export function DeployPanel({ projectId }: DeployPanelProps) {
 
   const undeploy = async () => {
     if (!confirm("Take this app offline?")) return;
-    await fetch(`/api/projects/${projectId}/undeploy`, { method: "POST" });
+    await api(`/api/projects/${projectId}/undeploy`, { method: "POST" });
     setDeployment((d) => d ? { ...d, isLive: false } : d);
   };
 
@@ -71,7 +72,7 @@ export function DeployPanel({ projectId }: DeployPanelProps) {
   const saveDomain = async () => {
     setIsSavingDomain(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/deployment/domain`, {
+      const res = await api(`/api/projects/${projectId}/deployment/domain`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ customDomain: domainInput.trim() }),

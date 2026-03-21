@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useListProjects, useCreateProject, useDeleteProject } from "@workspace/api-client-react";
+import { api } from "@/lib/api-base";
 import { Plus, FolderGit2, Trash2, Loader2, X, LogOut, Coins, ChevronDown, Zap, BarChart2, Key, HelpCircle } from "lucide-react";
 import { BuyCreditsModal } from "@/components/payments/BuyCreditsModal";
 import { HelpChatWidget } from "@/components/help/HelpChatWidget";
@@ -27,7 +28,7 @@ function CreditsDisplay({ onBuyCredits }: { onBuyCredits: () => void }) {
   const [data, setData] = useState<{ balance: number | null; unlimited: boolean } | null>(null);
 
   useEffect(() => {
-    fetch("/api/credits")
+    api("/api/credits")
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d) setData(d); })
       .catch(() => {});
@@ -97,7 +98,7 @@ export function Sidebar({ isOpen = true, onClose, isMobileDrawer = false }: Side
 
   useEffect(() => {
     if (isCreating && templates.length === 0) {
-      fetch("/api/templates")
+      api("/api/templates")
         .then((r) => r.json())
         .then(setTemplates)
         .catch(() => {});

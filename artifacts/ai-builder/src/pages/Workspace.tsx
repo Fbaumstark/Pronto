@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useParams } from "wouter";
 import { useGetProject } from "@workspace/api-client-react";
+import { api } from "@/lib/api-base";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
@@ -39,7 +40,7 @@ function PublishBar({
   const baseUrl = window.location.origin;
 
   const load = useCallback(() => {
-    fetch(`/api/projects/${projectId}/deployment`)
+    api(`/api/projects/${projectId}/deployment`)
       .then((r) => (r.ok ? r.json() : null))
       .then(setDeployment)
       .catch(() => setDeployment(null));
@@ -52,7 +53,7 @@ function PublishBar({
   const deploy = async () => {
     setIsDeploying(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/deploy`, { method: "POST" });
+      const res = await api(`/api/projects/${projectId}/deploy`, { method: "POST" });
       const d = await res.json();
       setDeployment(d);
     } finally {

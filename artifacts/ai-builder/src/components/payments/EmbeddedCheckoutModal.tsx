@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { EmbeddedCheckout, EmbeddedCheckoutProvider } from "@stripe/react-stripe-js";
 import { X, Loader2, AlertCircle } from "lucide-react";
+import { api } from "@/lib/api-base";
 
 interface Props {
   priceId: string;
@@ -17,7 +18,7 @@ export function EmbeddedCheckoutModal({ priceId, productName, onClose }: Props) 
 
   useEffect(() => {
     // 1. Fetch publishable key
-    fetch("/api/credits/config")
+    api("/api/credits/config")
       .then((r) => r.json())
       .then(({ publishableKey }) => {
         if (!publishableKey) {
@@ -34,7 +35,7 @@ export function EmbeddedCheckoutModal({ priceId, productName, onClose }: Props) 
   }, []);
 
   const fetchClientSecret = useCallback(async () => {
-    const res = await fetch("/api/credits/checkout", {
+    const res = await api("/api/credits/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ priceId, embedded: true }),

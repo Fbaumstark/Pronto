@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getListProjectMessagesQueryKey } from '@workspace/api-client-react';
+import { api } from '@/lib/api-base';
 
 export type MessageAttachment =
   | { type: 'image'; imageData: string; imageMimeType: string; previewUrl?: string }
@@ -65,7 +66,7 @@ export function useChatStream(projectId: number) {
   const isUnlimitedRef = useRef(false);
 
   useEffect(() => {
-    fetch('/api/credits')
+    api('/api/credits')
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
         if (!d) return;
@@ -144,7 +145,7 @@ export function useChatStream(projectId: number) {
     }
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/messages`, {
+      const res = await api(`/api/projects/${projectId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: requestBody,

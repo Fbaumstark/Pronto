@@ -47,3 +47,11 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+.replit
+.config/
+.agents/
+attached_assets/
+.env
+.env.local
+start-dev.js
+.claude/

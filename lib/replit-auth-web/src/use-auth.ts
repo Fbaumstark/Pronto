@@ -12,6 +12,10 @@ interface AuthState {
   refetch: () => void;
 }
 
+const API_BASE = typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_URL
+  ? (import.meta as any).env.VITE_API_URL.replace(/\/$/, "")
+  : "";
+
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -22,7 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
-    fetch("/api/auth/user", { credentials: "include" })
+    fetch(`${API_BASE}/api/auth/user`, { credentials: "include" })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json() as Promise<{ user: AuthUser | null }>;
@@ -46,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [tick]);
 
   const logout = useCallback(async () => {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    await fetch(`${API_BASE}/api/auth/logout`, { method: "POST", credentials: "include" });
     setUser(null);
   }, []);
 

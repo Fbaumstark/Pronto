@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@workspace/replit-auth-web";
+import { api } from "@/lib/api-base";
 import {
   Users, DollarSign, Zap, ArrowLeft, TrendingUp,
   ChevronUp, ChevronDown, Search, RefreshCw,
@@ -65,7 +66,7 @@ function AIProviderPanel() {
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    fetch("/api/settings")
+    api("/api/settings")
       .then((r) => r.json())
       .then((d) => { setProvider(d.provider); setHasOwnKey(d.hasOwnApiKey); })
       .finally(() => setLoading(false));
@@ -79,7 +80,7 @@ function AIProviderPanel() {
     try {
       const body: any = { provider };
       if (provider === "own" && apiKey.trim()) body.ownApiKey = apiKey.trim();
-      const res = await fetch("/api/settings", {
+      const res = await api("/api/settings", {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
@@ -96,7 +97,7 @@ function AIProviderPanel() {
     if (!confirm("Remove Anthropic key and switch back to Replit AI?")) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/settings", {
+      const res = await api("/api/settings", {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider: "replit", ownApiKey: "" }),
       });
@@ -333,7 +334,7 @@ function AICostsPanel() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/admin/ai-costs?period=${period}`)
+    api(`/api/admin/ai-costs?period=${period}`)
       .then((r) => r.json())
       .then(setData)
       .finally(() => setLoading(false));
@@ -558,7 +559,7 @@ export function AdminPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/stats", { credentials: "include" });
+      const res = await api("/api/admin/stats", { credentials: "include" });
       if (res.status === 403) { setError("Access denied"); return; }
       if (!res.ok) throw new Error("Failed to load");
       setStats(await res.json());
