@@ -10,6 +10,7 @@ import creditsRouter from "./credits";
 import helpRouter from "./help";
 import adminRouter from "./admin";
 import secretsRouter from "./secrets";
+import memoryRouter from "./memory";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(creditsRouter);
 router.use(projectsRouter);
 router.use(settingsRouter);
 router.use(secretsRouter);
+router.use(memoryRouter);
 
 export default router;

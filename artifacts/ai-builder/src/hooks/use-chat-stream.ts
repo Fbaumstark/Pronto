@@ -16,6 +16,24 @@ export interface RequestSummary {
   filesChanged: number;
   durationMs: number;
   model: string;
+  agentBreakdown?: Array<{ agent: string; model: string; credits: number }>;
+  swarm?: boolean;
+}
+
+export interface AgentInfo {
+  agentId: string;
+  agentType: string;
+  role: string;
+  status: 'spawned' | 'running' | 'completed';
+  message?: string;
+  filesChanged?: string[];
+}
+
+export interface SwarmProgress {
+  phase: string;
+  activeAgents: number;
+  completedTasks: number;
+  totalTasks: number;
 }
 
 // $25 / 1,250,000 credits = $0.00002 per credit
@@ -53,6 +71,10 @@ export function useChatStream(projectId: number) {
       try { localStorage.removeItem(SUMMARY_KEY(projectId)); } catch {}
     }
   };
+
+  // Swarm agent tracking
+  const [activeAgents, setActiveAgents] = useState<AgentInfo[]>([]);
+  const [swarmProgress, setSwarmProgress] = useState<SwarmProgress | null>(null);
 
   // Extended thinking state
   const [isThinking, setIsThinking] = useState(false);
@@ -102,6 +124,8 @@ export function useChatStream(projectId: number) {
     setThinkingContent('');
     setThinkingSeconds(0);
     setLastSummary(null);
+    setActiveAgents([]);
+    setSwarmProgress(null);
     isThinkingRef.current = false;
     receivedDoneRef.current = false;
 
@@ -206,6 +230,38 @@ export function useChatStream(projectId: number) {
               setFileUpdateVersion((v) => v + 1);
             }
 
+            // Swarm agent events
+            if (data.type === 'agent_spawned') {
+              setActiveAgents((prev) => [...prev, {
+                agentId: data.agentId,
+                agentType: data.agentType,
+                role: data.role,
+                status: 'spawned',
+              }]);
+            }
+
+            if (data.type === 'agent_progress') {
+              setActiveAgents((prev) => prev.map((a) =>
+                a.agentId === data.agentId ? { ...a, status: 'running', message: data.message } : a
+              ));
+            }
+
+            if (data.type === 'agent_completed') {
+              setActiveAgents((prev) => prev.map((a) =>
+                a.agentId === data.agentId ? { ...a, status: 'completed', filesChanged: data.filesChanged } : a
+              ));
+              setFileUpdateVersion((v) => v + 1);
+            }
+
+            if (data.type === 'swarm_status') {
+              setSwarmProgress({
+                phase: data.phase,
+                activeAgents: data.activeAgents,
+                completedTasks: data.completedTasks,
+                totalTasks: data.totalTasks,
+              });
+            }
+
             if (data.type === 'error') {
               setError(data.error || 'An error occurred');
             }
@@ -223,7 +279,7 @@ export function useChatStream(projectId: number) {
                   : 0
               );
 
-              if (creditsUsed > 0 || data.inputTokens) {
+              if (creditsUsed > 0 || data.inputTokens || data.swarm) {
                 setLastSummary({
                   credits: creditsUsed,
                   usd: creditsUsed * USD_PER_CREDIT,
@@ -232,6 +288,8 @@ export function useChatStream(projectId: number) {
                   filesChanged: data.filesChanged ?? 0,
                   durationMs: data.durationMs ?? 0,
                   model: data.model ?? '',
+                  agentBreakdown: data.agentBreakdown,
+                  swarm: data.swarm ?? false,
                 });
               }
 
@@ -285,5 +343,7 @@ export function useChatStream(projectId: number) {
     lastSummary,
     wasInterrupted,
     resumeGeneration,
+    activeAgents,
+    swarmProgress,
   };
 }

@@ -10,6 +10,7 @@ import {
   templatesTable,
   usersTable,
   aiUsageLogTable,
+  appSettingsTable,
 } from "@workspace/db";
 import {
   CreateProjectBody,
@@ -17,9 +18,14 @@ import {
   UpdateProjectFileBody,
 } from "@workspace/api-zod";
 import { getAIClient } from "../lib/ai-client";
+import { getAvailableProviders, type LLMProvider } from "../lib/ai-providers";
 import type Anthropic from "@anthropic-ai/sdk";
 import { isUnlimitedUser } from "../lib/admin";
 import { ensureFreeCredits, triggerAutoTopup } from "./credits";
+import { classifyTask } from "../lib/ruflo/task-classifier";
+import { ModelRouter } from "../lib/ruflo/model-router";
+import { ProntoSwarmOrchestrator } from "../lib/ruflo/pronto-swarm";
+import { PgMemoryBackend } from "../lib/ruflo/pg-memory-backend";
 
 const MIN_CREDITS_TO_START = 500;
 
@@ -590,43 +596,153 @@ All other types of applications are welcome: landing pages, dashboards, games, p
   const AUTO_STOP_CHARS = 300;
 
   try {
-    // Smart model routing: surgical edits use Haiku (4× cheaper) only when the
-    // focused file is small enough that Haiku's output limit won't truncate it.
-    // Large files must go to Sonnet which has a 64K output budget — truncation
-    // must NEVER happen because it corrupts the user's code silently.
+    // ── Ruflo: classify task and check for swarm mode ──
+    const hasAttachment = !!(body.imageData || body.fileContent);
+    const classification = classifyTask(
+      body.content ?? "",
+      files.length,
+      !!focusedFile,
+      hasAttachment,
+    );
+
+    // Check orchestration mode from settings
+    let orchestrationMode = "auto";
+    try {
+      const [settings] = await db.select().from(appSettingsTable).limit(1);
+      orchestrationMode = settings?.orchestrationMode ?? "auto";
+    } catch {}
+
+    const useSwarm = classification.requiresSwarm && orchestrationMode !== "single";
+
+    if (useSwarm) {
+      // ── Multi-agent swarm execution path ──
+      const providers = await getAvailableProviders();
+      const memBackend = new PgMemoryBackend();
+      const swarm = new ProntoSwarmOrchestrator(memBackend, providers);
+      const userMsgRow = await db
+        .select()
+        .from(projectMessagesTable)
+        .where(eq(projectMessagesTable.projectId, project.id))
+        .orderBy(desc(projectMessagesTable.createdAt))
+        .limit(1);
+      const msgId = userMsgRow[0]?.id ?? 0;
+
+      const swarmResult = await swarm.executeSwarm({
+        userMessage: body.content ?? "",
+        projectId: project.id,
+        messageId: msgId,
+        files: files.map((f) => ({ filename: f.filename, content: f.content })),
+        classification,
+        sseWriter: (event) => {
+          if (!res.writableEnded) res.write(`data: ${JSON.stringify(event)}\n\n`);
+        },
+      });
+
+      // Apply file changes from swarm
+      let filesChangedCount = 0;
+      for (const change of swarmResult.fileChanges) {
+        if (change.isEdit && change.editOld && change.editNew) {
+          await applyEdit(change.filename, `<old>${change.editOld}</old><new>${change.editNew}</new>`);
+          filesChangedCount++;
+        } else if (!change.isEdit && change.content) {
+          await flushFile(change.filename, change.content);
+          filesChangedCount++;
+        }
+      }
+
+      // Build assistant message from swarm output
+      const swarmSummary = swarmResult.agentResults
+        .filter((r) => r.agentType !== "reviewer")
+        .map((r) => r.rawOutput)
+        .join("\n\n");
+      fullResponse = swarmSummary;
+
+      // Credit accounting
+      const creditsUsed = swarmResult.totalCredits;
+      if (userId && !unlimited) {
+        await db.insert(creditLedgerTable).values({
+          userId,
+          amount: -creditsUsed,
+          type: "ai_usage",
+          description: `Swarm: ${swarmResult.agentResults.length} agents, ${filesChangedCount} files changed`,
+        });
+      }
+
+      // Send done event with agent breakdown
+      const agentBreakdown = swarmResult.agentResults.map((r) => ({
+        agent: r.agentType,
+        model: r.model,
+        credits: calculateCredits(r.model, r.inputTokens, r.outputTokens),
+      }));
+
+      const balance = userId ? await getUserBalance(userId) : 0;
+      res.write(`data: ${JSON.stringify({
+        type: "done",
+        balance,
+        creditsUsed,
+        agentBreakdown,
+        swarm: true,
+      })}\n\n`);
+
+      // Save assistant message
+      await db.insert(projectMessagesTable).values({
+        projectId: project.id,
+        role: "assistant",
+        content: fullResponse,
+      });
+
+      // Auto-save version
+      await saveVersion(project.id);
+
+      clearInterval(keepAlive);
+      res.end();
+      return;
+    }
+
+    // ── Single-agent execution path (existing behavior, with ruflo routing) ──
+    // Try ruflo model routing first, fall back to original logic
+    let model: string;
+    let THINK_BUDGET: number;
     const userWordCount = (body.content ?? "").trim().split(/\s+/).filter(Boolean).length;
     const focusedFileLines = focusedFile ? focusedFile.content.split("\n").length : 0;
-    const hasAttachment = !!(body.imageData || body.fileContent);
     const isSimpleEdit = isSurgical && userWordCount < 200 && files.length > 0
-      && focusedFileLines < 150  // Haiku output cap — anything bigger routes to Sonnet
-      && !hasAttachment;          // Images/files always need Sonnet (vision + larger context)
-    const model = isSimpleEdit ? "claude-haiku-4-5" : "claude-sonnet-4-6";
+      && focusedFileLines < 150
+      && !hasAttachment;
 
-    // Tiered thinking budget: scale to actual request complexity rather than a flat
-    // 10 K for everything. Thinking tokens are billed at output-token price ($15/MTok)
-    // so wasted headroom is expensive. Tiers:
-    //   New project (blank canvas)   → 12 K  (needs full architectural planning)
-    //   Complex request OR big codebase → 8 K
-    //   Short/medium existing-project request → 5 K (most common case)
-    //   Simple surgical edit (Haiku)  → 0  (Haiku doesn't support thinking)
-    const useThinking = !isSimpleEdit;
-    const isNewProject = files.length === 0;
-    const isLargeCodebase = eligibleFiles.length > 5;
-    const isComplexRequest = userWordCount > 150;
-    const THINK_BUDGET = !useThinking
-      ? 0
-      : isNewProject
-        ? 12_000
-        : isComplexRequest || isLargeCodebase
-          ? 8_000
-          : 5_000;
+    try {
+      const providers = await getAvailableProviders();
+      if (providers.length > 1) {
+        // Multi-provider available: use ruflo router
+        const memBackend = new PgMemoryBackend();
+        const router = new ModelRouter(memBackend);
+        const decision = await router.route(classification, providers);
+        model = decision.model;
+        THINK_BUDGET = decision.thinkingBudget;
+      } else {
+        throw new Error("single provider, use defaults");
+      }
+    } catch {
+      // Fallback to original Haiku/Sonnet selection
+      model = isSimpleEdit ? "claude-haiku-4-5" : "claude-sonnet-4-6";
+      const useThinking = !isSimpleEdit;
+      const isNewProject = files.length === 0;
+      const isLargeCodebase = eligibleFiles.length > 5;
+      const isComplexRequest = userWordCount > 150;
+      THINK_BUDGET = !useThinking
+        ? 0
+        : isNewProject
+          ? 12_000
+          : isComplexRequest || isLargeCodebase
+            ? 8_000
+            : 5_000;
+    }
 
     const streamParams: any = {
       model,
       max_tokens: isSimpleEdit ? 8_000 : 64_000 + THINK_BUDGET,
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }] as any,
       messages: chatMessages,
-      ...(useThinking ? { thinking: { type: "enabled", budget_tokens: THINK_BUDGET } } : {}),
+      ...(THINK_BUDGET > 0 ? { thinking: { type: "enabled", budget_tokens: THINK_BUDGET } } : {}),
     };
     const stream = anthropicClient.messages.stream(streamParams as any);
 

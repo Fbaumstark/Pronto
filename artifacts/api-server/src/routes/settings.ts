@@ -15,12 +15,16 @@ router.get("/settings", async (_req, res) => {
 
 router.put("/settings", async (req, res) => {
   try {
-    const { provider, ownApiKey } = req.body;
+    const { provider, ownApiKey, openaiApiKey, googleApiKey, orchestrationMode } = req.body;
     if (!provider || !["replit", "own"].includes(provider)) {
       res.status(400).json({ error: "provider must be 'replit' or 'own'" });
       return;
     }
-    const updated = await updateSettings(provider, ownApiKey);
+    if (orchestrationMode && !["auto", "single", "swarm"].includes(orchestrationMode)) {
+      res.status(400).json({ error: "orchestrationMode must be 'auto', 'single', or 'swarm'" });
+      return;
+    }
+    const updated = await updateSettings(provider, ownApiKey, openaiApiKey, googleApiKey, orchestrationMode);
     res.json(updated);
   } catch (err) {
     console.error("Error updating settings:", err);

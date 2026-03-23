@@ -21,29 +21,46 @@ export async function getSettings() {
       .insert(appSettingsTable)
       .values({ provider: "replit" })
       .returning();
-    return { provider: created.provider, hasOwnApiKey: false };
+    return { provider: created.provider, hasOwnApiKey: false, hasOpenaiKey: false, hasGoogleKey: false, orchestrationMode: "auto" };
   }
   return {
     provider: settings.provider,
     hasOwnApiKey: !!settings.ownApiKey,
+    hasOpenaiKey: !!settings.openaiApiKey,
+    hasGoogleKey: !!settings.googleApiKey,
+    orchestrationMode: settings.orchestrationMode ?? "auto",
   };
 }
 
-export async function updateSettings(provider: string, ownApiKey?: string) {
+export async function updateSettings(
+  provider: string,
+  ownApiKey?: string,
+  openaiApiKey?: string,
+  googleApiKey?: string,
+  orchestrationMode?: string,
+) {
   const [existing] = await db.select().from(appSettingsTable).limit(1);
+  const updates: Record<string, any> = {
+    provider,
+    updatedAt: new Date(),
+  };
+  if (ownApiKey !== undefined) updates.ownApiKey = ownApiKey || null;
+  if (openaiApiKey !== undefined) updates.openaiApiKey = openaiApiKey || null;
+  if (googleApiKey !== undefined) updates.googleApiKey = googleApiKey || null;
+  if (orchestrationMode !== undefined) updates.orchestrationMode = orchestrationMode;
+
   if (existing) {
     await db
       .update(appSettingsTable)
-      .set({
-        provider,
-        ...(ownApiKey !== undefined ? { ownApiKey: ownApiKey || null } : {}),
-        updatedAt: new Date(),
-      })
+      .set(updates)
       .where(eq(appSettingsTable.id, existing.id));
   } else {
     await db.insert(appSettingsTable).values({
       provider,
       ownApiKey: ownApiKey || null,
+      openaiApiKey: openaiApiKey || null,
+      googleApiKey: googleApiKey || null,
+      orchestrationMode: orchestrationMode || "auto",
     });
   }
   return getSettings();
