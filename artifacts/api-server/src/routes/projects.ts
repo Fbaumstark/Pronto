@@ -26,7 +26,6 @@ import { classifyTask } from "../lib/ruflo/task-classifier";
 import { ModelRouter } from "../lib/ruflo/model-router";
 import { ProntoSwarmOrchestrator } from "../lib/ruflo/pronto-swarm";
 import { PgMemoryBackend } from "../lib/ruflo/pg-memory-backend";
-import { recallMemories, extractMemories, storeMemories, formatMemoriesForPrompt } from "../lib/ruflo/auto-memory";
 
 const MIN_CREDITS_TO_START = 500;
 
@@ -738,19 +737,10 @@ All other types of applications are welcome: landing pages, dashboards, games, p
             : 5_000;
     }
 
-    // ── Auto Memory: inject user memories into system prompt ──
-    let memoryInjection = "";
-    if (userId) {
-      try {
-        const memories = await recallMemories(userId, projectId, 15);
-        memoryInjection = formatMemoriesForPrompt(memories);
-      } catch {}
-    }
-
     const streamParams: any = {
       model,
       max_tokens: isSimpleEdit ? 8_000 : 64_000 + THINK_BUDGET,
-      system: [{ type: "text", text: systemPrompt + memoryInjection, cache_control: { type: "ephemeral" } }] as any,
+      system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }] as any,
       messages: chatMessages,
       ...(THINK_BUDGET > 0 ? { thinking: { type: "enabled", budget_tokens: THINK_BUDGET } } : {}),
     };
@@ -839,13 +829,6 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     await db.update(projectsTable).set({ updatedAt: new Date() }).where(eq(projectsTable.id, projectId));
 
     await db.insert(projectMessagesTable).values({ projectId, role: "assistant", content: fullResponse });
-
-    // ── Auto Memory: extract and store memories from this turn ──
-    if (userId) {
-      extractMemories(anthropicClient, body.content ?? "", fullResponse, projectId, userId)
-        .then(storeMemories)
-        .catch((err) => console.error("[auto-memory] extraction error:", err));
-    }
 
     await saveVersion(projectId);
 
