@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, CheckCircle2, FileCode2, Zap, FileText, Scissors, Globe, Brain, ChevronDown, ChevronRight, ChevronUp, Coins, Clock, FileCode, Layers } from "lucide-react";
+import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, CheckCircle2, FileCode2, Zap, FileText, Scissors, Globe, Brain, ChevronDown, ChevronRight, ChevronUp, Coins, Clock, FileCode, Layers, Monitor } from "lucide-react";
 import { useListProjectMessages } from "@workspace/api-client-react";
 import { useChatStream, type MessageAttachment, type RequestSummary } from "@/hooks/use-chat-stream";
 import ReactMarkdown from "react-markdown";
@@ -183,6 +183,76 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
 
+  // Computer Use state
+  const [computerUseActive, setComputerUseActive] = useState(false);
+  const [computerUseStep, setComputerUseStep] = useState(0);
+  const [computerUseScreenshot, setComputerUseScreenshot] = useState<string | null>(null);
+
+  const startComputerUse = async () => {
+    const task = input.trim() || "Review this app for visual and functional issues. Test all interactive elements.";
+    const baseUrl = window.location.origin;
+    // Get deployment slug from the project
+    let previewUrl = "";
+    try {
+      const depRes = await fetch(`/api/projects/${projectId}/deployment`);
+      if (depRes.ok) {
+        const dep = await depRes.json();
+        if (dep?.slug) previewUrl = `${baseUrl}/preview/${dep.slug}`;
+      }
+    } catch {}
+    if (!previewUrl) {
+      alert("Deploy the app first so Computer Use can access the preview.");
+      return;
+    }
+
+    setComputerUseActive(true);
+    setComputerUseStep(0);
+    setComputerUseScreenshot(null);
+    setInput("");
+    localStorage.removeItem(draftKey);
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/computer-use`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task, previewUrl }),
+      });
+
+      const reader = res.body?.getReader();
+      if (!reader) return;
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.type === "computer_use_step") setComputerUseStep(event.step);
+            if (event.type === "computer_use_done") {
+              setComputerUseScreenshot(event.screenshot);
+              if (event.codeChanges) {
+                sendMessage(`Based on Computer Use analysis, apply these fixes:\n\n${event.codeChanges}`);
+              }
+            }
+            if (event.type === "error") console.error("Computer use error:", event.error);
+          } catch {}
+        }
+      }
+    } catch (err) {
+      console.error("Computer use failed:", err);
+    }
+    setComputerUseActive(false);
+  };
+
   const scrollToBottom = () => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   };
@@ -288,6 +358,20 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
         >
           {surgicalMode ? <Scissors className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
           {surgicalMode ? "Surgical" : "Full"}
+        </button>
+
+        <button
+          onClick={startComputerUse}
+          disabled={isStreaming || computerUseActive}
+          title="Computer Use: AI sees and interacts with your app preview using Anthropic's Computer Use API"
+          className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors shrink-0 disabled:opacity-50 ${
+            computerUseActive
+              ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
+              : "bg-muted/40 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+          }`}
+        >
+          {computerUseActive ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Monitor className="w-3.5 h-3.5" />}
+          {computerUseActive ? `Testing (${computerUseStep})` : "Computer Use"}
         </button>
       </div>
 

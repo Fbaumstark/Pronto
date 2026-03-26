@@ -26,6 +26,7 @@ import { classifyTask } from "../lib/ruflo/task-classifier";
 import { ModelRouter } from "../lib/ruflo/model-router";
 import { ProntoSwarmOrchestrator } from "../lib/ruflo/pronto-swarm";
 import { PgMemoryBackend } from "../lib/ruflo/pg-memory-backend";
+import { runComputerUseLoop } from "../lib/computer-use";
 
 const MIN_CREDITS_TO_START = 500;
 
@@ -928,6 +929,77 @@ router.put("/projects/:projectId/files/:fileId", async (req, res) => {
     .returning();
 
   res.json(updated);
+});
+
+// ── Computer Use: AI reviews and interacts with the app preview ──
+router.post("/projects/:id/computer-use", async (req, res) => {
+  const projectId = parseInt(req.params.id);
+  const { task, previewUrl } = req.body;
+
+  if (!previewUrl) {
+    res.status(400).json({ error: "previewUrl is required" });
+    return;
+  }
+
+  const [project] = await db
+    .select()
+    .from(projectsTable)
+    .where(eq(projectsTable.id, projectId));
+
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  // Get API key
+  const [settings] = await db.select().from(appSettingsTable).limit(1);
+  const apiKey = settings?.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    res.status(500).json({ error: "No Anthropic API key configured" });
+    return;
+  }
+
+  // SSE stream for real-time updates
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  try {
+    const result = await runComputerUseLoop(
+      apiKey,
+      previewUrl,
+      task || `Review this app "${project.name}" for visual and functional issues. Test all interactive elements. Report what needs fixing.`,
+      (event) => {
+        if (!res.writableEnded) {
+          res.write(`data: ${JSON.stringify(event)}\n\n`);
+        }
+      },
+    );
+
+    // Send final result
+    res.write(`data: ${JSON.stringify({
+      type: "computer_use_done",
+      actions: result.actions.length,
+      iterations: result.iterations,
+      codeChanges: result.codeChanges,
+      screenshot: result.finalScreenshot,
+    })}\n\n`);
+
+    // Save as assistant message
+    await db.insert(projectMessagesTable).values({
+      projectId,
+      role: "assistant",
+      content: `[Computer Use Analysis]\n\n${result.codeChanges}`,
+    });
+
+    res.end();
+  } catch (err: any) {
+    console.error("Computer use error:", err);
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: "error", error: err.message })}\n\n`);
+      res.end();
+    }
+  }
 });
 
 export default router;
