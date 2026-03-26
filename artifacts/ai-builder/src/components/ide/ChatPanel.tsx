@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, CheckCircle2, FileCode2, Zap, FileText, Scissors, Globe, Brain, ChevronDown, ChevronRight, ChevronUp, Coins, Clock, FileCode, Layers } from "lucide-react";
+import { Send, Bot, User, Loader2, SquareSquare, Paperclip, X, CheckCircle2, FileCode2, Zap, FileText, Scissors, Globe, Brain, ChevronDown, ChevronRight, ChevronUp, Coins, Clock, FileCode, Layers, Sparkles, Play, Square, Lightbulb } from "lucide-react";
 import { useListProjectMessages } from "@workspace/api-client-react";
 import { useChatStream, type MessageAttachment, type RequestSummary } from "@/hooks/use-chat-stream";
 import ReactMarkdown from "react-markdown";
@@ -183,6 +183,92 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
 
+  // ── Auto Mode state ──
+  const [autoModeActive, setAutoModeActive] = useState(false);
+  const [autoModeStep, setAutoModeStep] = useState(0);
+  const [autoModeMax, setAutoModeMax] = useState(10);
+
+  // ── Auto Dream state ──
+  const [dreamLoading, setDreamLoading] = useState(false);
+
+  const startAutoMode = async () => {
+    const goals = input.trim();
+    if (!goals) { alert("Type your goals first, then click Auto Mode"); return; }
+    try {
+      const res = await fetch(`/api/projects/${projectId}/auto-mode/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goals: goals.split("\n").filter(Boolean), maxSteps: 10 }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAutoModeActive(true);
+        setAutoModeStep(0);
+        setAutoModeMax(data.config.maxSteps);
+        // Send the first message
+        sendMessage(goals);
+        setInput("");
+        localStorage.removeItem(draftKey);
+      }
+    } catch (err) { console.error("Auto mode start error:", err); }
+  };
+
+  const stopAutoModeHandler = async () => {
+    await fetch(`/api/projects/${projectId}/auto-mode/stop`, { method: "POST" });
+    setAutoModeActive(false);
+  };
+
+  // Auto mode continuation: after each AI response, plan and send next step
+  useEffect(() => {
+    if (!autoModeActive || isStreaming) return;
+    if (!lastSummary) return; // no response yet
+
+    const continueAutoMode = async () => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/auto-mode/next`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectName: "Current Project",
+            files: [],
+            lastAssistantMessage: streamingContent || "",
+          }),
+        });
+        const data = await res.json();
+        if (data.done) {
+          setAutoModeActive(false);
+          return;
+        }
+        setAutoModeStep(data.step);
+        // Send the next auto-generated prompt
+        setTimeout(() => sendMessage(data.nextPrompt), 1500);
+      } catch { setAutoModeActive(false); }
+    };
+
+    const timer = setTimeout(continueAutoMode, 2000);
+    return () => clearTimeout(timer);
+  }, [autoModeActive, isStreaming, lastSummary]);
+
+  const startDream = async () => {
+    const idea = input.trim();
+    if (!idea) { alert("Describe your app idea first"); return; }
+    setDreamLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/dream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idea }),
+      });
+      const dream = await res.json();
+      if (dream.initialPrompt) {
+        setInput("");
+        localStorage.removeItem(draftKey);
+        sendMessage(dream.initialPrompt);
+      }
+    } catch (err) { console.error("Dream error:", err); }
+    setDreamLoading(false);
+  };
+
   const scrollToBottom = () => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   };
@@ -288,6 +374,45 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
         >
           {surgicalMode ? <Scissors className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
           {surgicalMode ? "Surgical" : "Full"}
+        </button>
+
+        {autoModeActive ? (
+          <button
+            onClick={stopAutoModeHandler}
+            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400 transition-colors shrink-0"
+          >
+            <Square className="w-3.5 h-3.5" />
+            Stop Auto ({autoModeStep}/{autoModeMax})
+          </button>
+        ) : (
+          <button
+            onClick={startAutoMode}
+            disabled={isStreaming || dreamLoading}
+            title="Auto Mode: AI builds your app step-by-step autonomously"
+            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border bg-muted/40 border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0 disabled:opacity-50"
+          >
+            <Play className="w-3.5 h-3.5" />
+            Auto
+          </button>
+        )}
+
+        <button
+          onClick={startDream}
+          disabled={isStreaming || dreamLoading}
+          title="Auto Dream: AI brainstorms and designs your app from a vague idea"
+          className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border bg-muted/40 border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0 disabled:opacity-50"
+        >
+          {dreamLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+          Dream
+        </button>
+
+        <button
+          onClick={() => window.open(`/api/user/memories`, '_blank')}
+          title="Auto Memory: View what the AI remembers about you"
+          className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border bg-muted/40 border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+        >
+          <Brain className="w-3.5 h-3.5" />
+          Memory
         </button>
       </div>
 
