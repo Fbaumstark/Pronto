@@ -183,39 +183,22 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
 
-  // Computer Use state
-  const [computerUseActive, setComputerUseActive] = useState(false);
-  const [computerUseStep, setComputerUseStep] = useState(0);
-  const [computerUseScreenshot, setComputerUseScreenshot] = useState<string | null>(null);
+  // Review/Test state
+  const [reviewActive, setReviewActive] = useState(false);
+  const [reviewStatus, setReviewStatus] = useState("");
 
-  const startComputerUse = async () => {
-    const task = input.trim() || "Review this app for visual and functional issues. Test all interactive elements.";
-    const baseUrl = window.location.origin;
-    // Get deployment slug from the project
-    let previewUrl = "";
-    try {
-      const depRes = await fetch(`/api/projects/${projectId}/deployment`);
-      if (depRes.ok) {
-        const dep = await depRes.json();
-        if (dep?.slug) previewUrl = `${baseUrl}/preview/${dep.slug}`;
-      }
-    } catch {}
-    if (!previewUrl) {
-      alert("Deploy the app first so Computer Use can access the preview.");
-      return;
-    }
-
-    setComputerUseActive(true);
-    setComputerUseStep(0);
-    setComputerUseScreenshot(null);
+  const startReview = async () => {
+    const task = input.trim();
+    setReviewActive(true);
+    setReviewStatus("Starting review...");
     setInput("");
     localStorage.removeItem(draftKey);
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/computer-use`, {
+      const res = await fetch(`/api/projects/${projectId}/review-preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task, previewUrl }),
+        body: JSON.stringify({ task }),
       });
 
       const reader = res.body?.getReader();
@@ -236,21 +219,25 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
           if (!line.startsWith("data: ")) continue;
           try {
             const event = JSON.parse(line.slice(6));
-            if (event.type === "computer_use_step") setComputerUseStep(event.step);
-            if (event.type === "computer_use_done") {
-              setComputerUseScreenshot(event.screenshot);
-              if (event.codeChanges) {
-                sendMessage(`Based on Computer Use analysis, apply these fixes:\n\n${event.codeChanges}`);
+            if (event.type === "review_status") setReviewStatus(event.message);
+            if (event.type === "review_done") {
+              setReviewStatus("");
+              if (event.analysis) {
+                sendMessage(`Apply these fixes from the preview review:\n\n${event.analysis}`);
               }
             }
-            if (event.type === "error") console.error("Computer use error:", event.error);
+            if (event.type === "error") {
+              setReviewStatus("Error: " + event.error);
+              console.error("Review error:", event.error);
+            }
           } catch {}
         }
       }
     } catch (err) {
-      console.error("Computer use failed:", err);
+      console.error("Review failed:", err);
+      setReviewStatus("Review failed");
     }
-    setComputerUseActive(false);
+    setTimeout(() => { setReviewActive(false); setReviewStatus(""); }, 2000);
   };
 
   const scrollToBottom = () => {
@@ -361,17 +348,17 @@ export function ChatPanel({ projectId, onFileUpdated, activeFileId, activeFileNa
         </button>
 
         <button
-          onClick={startComputerUse}
-          disabled={isStreaming || computerUseActive}
-          title="Computer Use: AI sees and interacts with your app preview using Anthropic's Computer Use API"
+          onClick={startReview}
+          disabled={isStreaming || reviewActive}
+          title="Test App: AI screenshots your preview (desktop + mobile + scroll), finds issues, and auto-fixes them"
           className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors shrink-0 disabled:opacity-50 ${
-            computerUseActive
+            reviewActive
               ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
               : "bg-muted/40 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
           }`}
         >
-          {computerUseActive ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Monitor className="w-3.5 h-3.5" />}
-          {computerUseActive ? `Testing (${computerUseStep})` : "Computer Use"}
+          {reviewActive ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Monitor className="w-3.5 h-3.5" />}
+          {reviewActive ? (reviewStatus || "Testing...") : "Test App"}
         </button>
       </div>
 

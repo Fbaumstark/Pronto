@@ -250,6 +250,133 @@ Use the computer tool to click around and test the app. Take screenshots after e
   }
 }
 
+/**
+ * Quick visual review: screenshot the preview and ask Claude vision to analyze it.
+ * No deploy needed -- loads directly from the API server's preview endpoint.
+ * Uses standard Messages API with vision, not the Computer Use beta.
+ */
+export async function reviewPreview(
+  apiKey: string,
+  serverBaseUrl: string,
+  projectId: number,
+  task: string,
+  projectFiles: Array<{ filename: string; content: string; language: string }>,
+  onEvent?: (event: any) => void,
+): Promise<ComputerUseResult> {
+  const client = new Anthropic({ apiKey });
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  await page.setViewport({ width: DISPLAY_WIDTH, height: DISPLAY_HEIGHT });
+
+  const actions: Array<{ action: string; detail: string }> = [];
+
+  try {
+    const previewUrl = `${serverBaseUrl}/api/projects/${projectId}/preview`;
+    onEvent?.({ type: "review_status", message: "Loading preview..." });
+
+    await page.goto(previewUrl, { waitUntil: "networkidle2", timeout: 15000 });
+    await new Promise((r) => setTimeout(r, 1500));
+
+    // Take desktop screenshot
+    onEvent?.({ type: "review_status", message: "Capturing desktop view..." });
+    const desktopShot = await captureScreenshot(page);
+    actions.push({ action: "screenshot", detail: "desktop 1280x800" });
+
+    // Take mobile screenshot
+    onEvent?.({ type: "review_status", message: "Capturing mobile view..." });
+    await page.setViewport({ width: 375, height: 812 });
+    await new Promise((r) => setTimeout(r, 500));
+    const mobileShot = await page.screenshot({ type: "png" });
+    const mobileB64 = Buffer.from(mobileShot).toString("base64");
+    actions.push({ action: "screenshot", detail: "mobile 375x812" });
+
+    // Scroll test on desktop
+    onEvent?.({ type: "review_status", message: "Testing scroll..." });
+    await page.setViewport({ width: DISPLAY_WIDTH, height: DISPLAY_HEIGHT });
+    await new Promise((r) => setTimeout(r, 300));
+    await page.mouse.wheel({ deltaY: 600 });
+    await new Promise((r) => setTimeout(r, 500));
+    const scrolledShot = await captureScreenshot(page);
+    actions.push({ action: "scroll", detail: "scrolled down 600px" });
+
+    // Get console errors
+    const consoleErrors: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+    // Reload to catch errors fresh
+    await page.goto(previewUrl, { waitUntil: "networkidle2", timeout: 15000 });
+    await new Promise((r) => setTimeout(r, 1000));
+
+    // Build file context (truncated)
+    const fileContext = projectFiles
+      .filter(f => f.filename === "index.html" || f.filename.endsWith(".css") || f.filename.endsWith(".js"))
+      .map(f => `=== ${f.filename} ===\n${f.content.slice(0, 3000)}`)
+      .join("\n\n");
+
+    onEvent?.({ type: "review_status", message: "Analyzing with Claude..." });
+
+    const response = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 4096,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: "image/png", data: desktopShot } },
+            { type: "image", source: { type: "base64", media_type: "image/png", data: mobileB64 } },
+            { type: "image", source: { type: "base64", media_type: "image/png", data: scrolledShot } },
+            {
+              type: "text",
+              text: `You are a senior UI/UX reviewer. Analyze these 3 screenshots of a web app:
+1. Desktop view (1280x800)
+2. Mobile view (375x812)
+3. After scrolling down
+
+${task ? `USER REQUEST: ${task}\n\n` : ""}${consoleErrors.length > 0 ? `CONSOLE ERRORS:\n${consoleErrors.join("\n")}\n\n` : ""}SOURCE CODE:\n${fileContext}
+
+Provide a thorough review:
+
+## Visual Issues
+List specific visual problems (spacing, alignment, colors, typography, overflow, etc.)
+
+## Responsive Issues
+List problems with the mobile view
+
+## Functional Issues
+List any broken elements, missing interactions, or console errors
+
+## Code Fixes
+For EACH issue, provide the exact code fix using this format:
+<edit file="filename.ext">
+<old>exact code to replace</old>
+<new>fixed code</new>
+</edit>
+
+Be specific and actionable. Every fix must reference real code from the source.`,
+            },
+          ],
+        },
+      ],
+    });
+
+    const analysisText = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("\n");
+
+    return {
+      actions,
+      finalScreenshot: desktopShot,
+      codeChanges: analysisText,
+      summary: `Reviewed desktop, mobile, and scrolled views. ${consoleErrors.length} console errors found.`,
+      iterations: 1,
+    };
+  } finally {
+    await page.close();
+  }
+}
+
 export async function closeBrowser(): Promise<void> {
   if (browserInstance) {
     await browserInstance.close();

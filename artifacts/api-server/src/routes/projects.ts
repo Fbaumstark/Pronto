@@ -26,7 +26,7 @@ import { classifyTask } from "../lib/ruflo/task-classifier";
 import { ModelRouter } from "../lib/ruflo/model-router";
 import { ProntoSwarmOrchestrator } from "../lib/ruflo/pronto-swarm";
 import { PgMemoryBackend } from "../lib/ruflo/pg-memory-backend";
-import { runComputerUseLoop } from "../lib/computer-use";
+import { runComputerUseLoop, reviewPreview } from "../lib/computer-use";
 
 const MIN_CREDITS_TO_START = 500;
 
@@ -929,6 +929,82 @@ router.put("/projects/:projectId/files/:fileId", async (req, res) => {
     .returning();
 
   res.json(updated);
+});
+
+// ── Quick Review: AI screenshots and analyzes the preview (no deploy needed) ──
+router.post("/projects/:id/review-preview", async (req, res) => {
+  const projectId = parseInt(req.params.id);
+  const { task } = req.body;
+
+  const [project] = await db
+    .select()
+    .from(projectsTable)
+    .where(eq(projectsTable.id, projectId));
+
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  const files = await db
+    .select()
+    .from(projectFilesTable)
+    .where(eq(projectFilesTable.projectId, projectId));
+
+  if (files.length === 0) {
+    res.status(400).json({ error: "No files to preview" });
+    return;
+  }
+
+  const [settings] = await db.select().from(appSettingsTable).limit(1);
+  const apiKey = settings?.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    res.status(500).json({ error: "No Anthropic API key configured" });
+    return;
+  }
+
+  // Determine the server's own base URL
+  const proto = req.protocol;
+  const host = req.get("host") || "localhost:3001";
+  const serverBaseUrl = `${proto}://${host}`;
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  try {
+    const result = await reviewPreview(
+      apiKey,
+      serverBaseUrl,
+      projectId,
+      task || "",
+      files.map(f => ({ filename: f.filename, content: f.content, language: f.language })),
+      (event) => {
+        if (!res.writableEnded) res.write(`data: ${JSON.stringify(event)}\n\n`);
+      },
+    );
+
+    res.write(`data: ${JSON.stringify({
+      type: "review_done",
+      screenshot: result.finalScreenshot,
+      analysis: result.codeChanges,
+      summary: result.summary,
+    })}\n\n`);
+
+    await db.insert(projectMessagesTable).values({
+      projectId,
+      role: "assistant",
+      content: `[Preview Review]\n\n${result.codeChanges}`,
+    });
+
+    res.end();
+  } catch (err: any) {
+    console.error("Review preview error:", err);
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: "error", error: err.message })}\n\n`);
+      res.end();
+    }
+  }
 });
 
 // ── Computer Use: AI reviews and interacts with the app preview ──
