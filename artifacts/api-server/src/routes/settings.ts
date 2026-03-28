@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { getSettings, updateSettings } from "../lib/ai-client";
+import { getSettings, updateSettings, invalidateSettingsCache } from "../lib/ai-client";
 
 const router: IRouter = Router();
 
@@ -25,6 +25,7 @@ router.put("/settings", async (req, res) => {
       return;
     }
     const updated = await updateSettings(provider, ownApiKey, openaiApiKey, googleApiKey, orchestrationMode);
+    invalidateSettingsCache();
     res.json(updated);
   } catch (err) {
     console.error("Error updating settings:", err);

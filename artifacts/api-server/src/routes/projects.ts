@@ -17,7 +17,7 @@ import {
   SendProjectMessageBody,
   UpdateProjectFileBody,
 } from "@workspace/api-zod";
-import { getAIClient } from "../lib/ai-client";
+import { getAIClient, getCachedAppSettings } from "../lib/ai-client";
 import { getAvailableProviders, type LLMProvider } from "../lib/ai-providers";
 import type Anthropic from "@anthropic-ai/sdk";
 import { isUnlimitedUser } from "../lib/admin";
@@ -646,7 +646,7 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     // Check orchestration mode from settings
     let orchestrationMode = "auto";
     try {
-      const [settings] = await db.select().from(appSettingsTable).limit(1);
+      const settings = await getCachedAppSettings();
       orchestrationMode = settings?.orchestrationMode ?? "auto";
     } catch {}
 
@@ -1078,7 +1078,7 @@ router.post("/projects/:id/review-preview", async (req, res) => {
     return;
   }
 
-  const [settings] = await db.select().from(appSettingsTable).limit(1);
+  const settings = await getCachedAppSettings();
   const apiKey = settings?.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     res.status(500).json({ error: "No Anthropic API key configured" });
@@ -1150,7 +1150,7 @@ router.post("/projects/:id/computer-use", async (req, res) => {
   }
 
   // Get API key
-  const [settings] = await db.select().from(appSettingsTable).limit(1);
+  const settings = await getCachedAppSettings();
   const apiKey = settings?.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     res.status(500).json({ error: "No Anthropic API key configured" });

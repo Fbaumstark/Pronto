@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db, appSettingsTable } from "@workspace/db";
+import { getCachedAppSettings } from "./ai-client";
 
 // ---- Shared types ----
 
@@ -269,7 +270,7 @@ export function calculateCredits(model: string, inputTokens: number, outputToken
 export async function getAvailableProviders(): Promise<LLMProvider[]> {
   const providers: LLMProvider[] = [];
 
-  const [settings] = await db.select().from(appSettingsTable).limit(1);
+  const settings = await getCachedAppSettings();
 
   // Anthropic (always available via own key or replit)
   if (settings?.provider === "own" && settings.ownApiKey) {

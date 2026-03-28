@@ -3,9 +3,26 @@ import { eq } from "drizzle-orm";
 import { anthropic as replitAnthropic } from "@workspace/integrations-anthropic-ai";
 import { db, appSettingsTable } from "@workspace/db";
 
+// Cache app settings for 15 s to avoid repeated DB round-trips on every request
+let _settingsCache: { value: any; expiresAt: number } | null = null;
+
+export async function getCachedAppSettings(): Promise<any> {
+  if (_settingsCache && Date.now() < _settingsCache.expiresAt) {
+    return _settingsCache.value;
+  }
+  const [settings] = await db.select().from(appSettingsTable).limit(1);
+  _settingsCache = { value: settings ?? null, expiresAt: Date.now() + 15_000 };
+  return _settingsCache.value;
+}
+
+/** Call this after a settings write so the next request sees fresh data. */
+export function invalidateSettingsCache() {
+  _settingsCache = null;
+}
+
 export async function getAIClient(): Promise<{ client: Anthropic; provider: "own" | "replit" }> {
   try {
-    const [settings] = await db.select().from(appSettingsTable).limit(1);
+    const settings = await getCachedAppSettings();
     if (settings?.provider === "own" && settings.ownApiKey) {
       return { client: new Anthropic({ apiKey: settings.ownApiKey }), provider: "own" };
     }
