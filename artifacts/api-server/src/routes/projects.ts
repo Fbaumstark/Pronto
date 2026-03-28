@@ -500,6 +500,9 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     }
   }
 
+  // Track patches that have already failed this request so we don't retry the same no-op
+  const failedPatches = new Set<string>();
+
   async function applyEdit(filename: string, rawBuf: string) {
     const oldMatch = rawBuf.match(/<old>([\s\S]*?)<\/old>/);
     const newMatch = rawBuf.match(/<new>([\s\S]*?)<\/new>/);
@@ -509,13 +512,23 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     }
     const oldStr = oldMatch[1].replace(/^\n/, "").replace(/\n$/, "");
     const newStr = newMatch[1].replace(/^\n/, "").replace(/\n$/, "");
+
+    // Skip if this exact patch already failed earlier in this request
+    const patchKey = `${filename}::${oldStr}`;
+    if (failedPatches.has(patchKey)) {
+      console.warn(`[edit] Skipping duplicate failed patch for "${filename}"`);
+      return;
+    }
+
     const existingFile = files.find((f) => f.filename === filename);
     if (!existingFile) {
       console.warn(`[edit] File "${filename}" not found — skipping`);
+      failedPatches.add(patchKey);
       return;
     }
     if (!existingFile.content.includes(oldStr)) {
-      console.warn(`[edit] Old string not found in "${filename}" — falling back to no-op`);
+      console.warn(`[edit] Old string not found in "${filename}" — skipping (recorded to avoid retry)`);
+      failedPatches.add(patchKey);
       return;
     }
     const updated = existingFile.content.replace(oldStr, newStr);
