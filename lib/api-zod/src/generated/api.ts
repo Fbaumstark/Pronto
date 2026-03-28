@@ -206,6 +206,8 @@ export const SendProjectMessageBody = zod.object({
   imageData: zod.string().optional(),
   imageMimeType: zod.string().optional(),
   focusFileId: zod.number().optional(),
+  images: zod.array(zod.object({ data: zod.string(), mimeType: zod.string() })).optional(),
+  selectedElement: zod.object({ selector: zod.string(), tag: zod.string(), text: zod.string().optional() }).optional(),
 });
 
 /**

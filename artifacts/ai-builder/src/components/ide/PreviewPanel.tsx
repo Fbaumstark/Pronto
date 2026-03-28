@@ -1,15 +1,19 @@
 import { useState, useEffect, useRef } from "react";
-import { RotateCw, ExternalLink, Monitor, Smartphone, Tablet, Loader2 } from "lucide-react";
+import { RotateCw, ExternalLink, Monitor, Smartphone, Tablet, Loader2, MousePointer, MousePointerClick } from "lucide-react";
+import type { SelectedElement } from "@/hooks/use-chat-stream";
 
 interface PreviewPanelProps {
   projectId: number;
   refreshSignal?: number;
+  onElementSelected?: (el: SelectedElement) => void;
 }
 
-export function PreviewPanel({ projectId, refreshSignal = 0 }: PreviewPanelProps) {
+export function PreviewPanel({ projectId, refreshSignal = 0, onElementSelected }: PreviewPanelProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [selectorMode, setSelectorMode] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const prevSignalRef = useRef(refreshSignal);
 
   useEffect(() => {
@@ -19,6 +23,44 @@ export function PreviewPanel({ projectId, refreshSignal = 0 }: PreviewPanelProps
       return () => clearTimeout(t);
     }
   }, [refreshSignal]);
+
+  // When selector mode changes, message the iframe
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+    iframe.contentWindow.postMessage(
+      { type: selectorMode ? 'pronto-enable-selector' : 'pronto-disable-selector' },
+      '*'
+    );
+  }, [selectorMode]);
+
+  // When iframe reloads and selector mode is on, re-enable it
+  const handleIframeLoad = () => {
+    setIsLoading(false);
+    if (selectorMode && iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ type: 'pronto-enable-selector' }, '*');
+    }
+  };
+
+  // Listen for element selections from iframe
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type !== 'pronto-element-selected') return;
+      const el: SelectedElement = {
+        selector: e.data.selector,
+        tag: e.data.tag,
+        text: e.data.text,
+      };
+      setSelectorMode(false);
+      onElementSelected?.(el);
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [onElementSelected]);
+
+  const toggleSelectorMode = () => {
+    setSelectorMode((v) => !v);
+  };
 
   const viewWidth = {
     desktop: '100%',
@@ -53,27 +95,50 @@ export function PreviewPanel({ projectId, refreshSignal = 0 }: PreviewPanelProps
           </div>
         </div>
 
-        <div className="flex items-center gap-1 bg-muted/30 p-1 rounded-lg border border-border">
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Element selector toggle */}
           <button
-            onClick={() => setViewMode('desktop')}
-            className={`p-1.5 rounded-md transition-colors ${viewMode === 'desktop' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={toggleSelectorMode}
+            title={selectorMode ? "Click an element in the preview to select it (press again to cancel)" : "Pick an element to tell Claude what to fix"}
+            className={`p-1.5 rounded-md transition-colors ${
+              selectorMode
+                ? "bg-violet-500/20 text-violet-400 ring-1 ring-violet-500/40"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
           >
-            <Monitor className="w-4 h-4" />
+            {selectorMode ? <MousePointerClick className="w-4 h-4" /> : <MousePointer className="w-4 h-4" />}
           </button>
-          <button
-            onClick={() => setViewMode('tablet')}
-            className={`p-1.5 rounded-md transition-colors ${viewMode === 'tablet' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            <Tablet className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setViewMode('mobile')}
-            className={`p-1.5 rounded-md transition-colors ${viewMode === 'mobile' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            <Smartphone className="w-4 h-4" />
-          </button>
+
+          <div className="flex items-center gap-1 bg-muted/30 p-1 rounded-lg border border-border">
+            <button
+              onClick={() => setViewMode('desktop')}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === 'desktop' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              <Monitor className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('tablet')}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === 'tablet' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              <Tablet className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('mobile')}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === 'mobile' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              <Smartphone className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
+
+      {selectorMode && (
+        <div className="px-4 py-1.5 bg-violet-500/10 border-b border-violet-500/20 flex items-center gap-2">
+          <MousePointerClick className="w-3 h-3 text-violet-400 shrink-0 animate-pulse" />
+          <span className="text-xs text-violet-300">Click any element in the preview to select it — Claude will know exactly what to fix</span>
+          <button onClick={() => setSelectorMode(false)} className="ml-auto text-xs text-violet-400 hover:text-violet-200">Cancel</button>
+        </div>
+      )}
 
       <div className="flex-1 bg-neutral-900 overflow-hidden flex items-center justify-center p-2 sm:p-4 relative">
         {isLoading && (
@@ -86,12 +151,13 @@ export function PreviewPanel({ projectId, refreshSignal = 0 }: PreviewPanelProps
           style={{ width: viewWidth[viewMode], maxWidth: '100%' }}
         >
           <iframe
+            ref={iframeRef}
             key={refreshKey}
             src={previewUrl}
             className="w-full h-full border-0 bg-white"
             sandbox="allow-scripts allow-same-origin"
             title="Preview"
-            onLoad={() => setIsLoading(false)}
+            onLoad={handleIframeLoad}
           />
         </div>
       </div>

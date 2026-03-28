@@ -402,11 +402,35 @@ All other types of applications are welcome: landing pages, dashboards, games, p
     }));
   }
 
+  // Prepend element-selector context if the user picked an element in the preview
+  const elementCtx = body.selectedElement
+    ? `[Inspecting element: <${body.selectedElement.tag}>${body.selectedElement.text ? ` "${body.selectedElement.text.slice(0, 80)}"` : ""} — CSS selector: ${body.selectedElement.selector}]\n\n`
+    : "";
+  const userText = elementCtx + (body.content || "");
+
   // Build the user message — images, PDFs, text files, or plain text
   if (body.fileContent && body.fileName) {
     // Text file: include its content inline so Claude can read it
     const fileBlock = `\n\n<uploaded_file name="${body.fileName}">\n${body.fileContent}\n</uploaded_file>`;
-    chatMessages.push({ role: "user", content: (body.content || "") + fileBlock });
+    chatMessages.push({ role: "user", content: userText + fileBlock });
+  } else if (body.images && body.images.length > 0) {
+    // Multiple images: build an array of image blocks followed by the text
+    const imageMimes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    const imageBlocks = body.images.map((img: { data: string; mimeType: string }) => ({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: imageMimes.includes(img.mimeType) ? img.mimeType : "image/jpeg",
+        data: img.data,
+      },
+    }));
+    chatMessages.push({
+      role: "user",
+      content: [
+        ...imageBlocks,
+        { type: "text", text: userText || `What changes should I make based on these ${body.images.length} image(s)?` },
+      ],
+    });
   } else if (body.imageData && body.imageMimeType) {
     const imageMimes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
     if (body.imageMimeType === "application/pdf") {
@@ -419,11 +443,11 @@ All other types of applications are welcome: landing pages, dashboards, games, p
             source: { type: "base64", media_type: "application/pdf", data: body.imageData },
             ...(body.fileName ? { title: body.fileName } : {}),
           },
-          { type: "text", text: body.content || "What changes should I make based on this document?" },
+          { type: "text", text: userText || "What changes should I make based on this document?" },
         ],
       });
     } else {
-      // Image: use vision
+      // Single image: use vision
       const mime = imageMimes.includes(body.imageMimeType) ? body.imageMimeType : "image/jpeg";
       chatMessages.push({
         role: "user",
@@ -432,12 +456,12 @@ All other types of applications are welcome: landing pages, dashboards, games, p
             type: "image",
             source: { type: "base64", media_type: mime, data: body.imageData },
           },
-          { type: "text", text: body.content || "What changes should I make based on this image?" },
+          { type: "text", text: userText || "What changes should I make based on this image?" },
         ],
       });
     }
   } else {
-    chatMessages.push({ role: "user", content: body.content });
+    chatMessages.push({ role: "user", content: userText || body.content });
   }
 
   res.setHeader("Content-Type", "text/event-stream");
@@ -903,8 +927,73 @@ router.get("/projects/:id/preview", async (req, res) => {
     return;
   }
 
+  // Inject element-selector bridge script (dormant until activated by postMessage)
+  const selectorScript = `<script>
+(function(){
+  var enabled=false,hovered=null;
+  function buildSelector(el){
+    var parts=[];var cur=el;
+    while(cur&&cur.nodeType===1&&cur!==document.body){
+      var p=cur.tagName.toLowerCase();
+      if(cur.id){p+='#'+cur.id;parts.unshift(p);break;}
+      var cls=Array.from(cur.classList).slice(0,2).map(function(c){return'.'+c;}).join('');
+      p+=cls;parts.unshift(p);cur=cur.parentElement;
+    }
+    return parts.slice(-3).join(' > ')||el.tagName.toLowerCase();
+  }
+  window.addEventListener('message',function(e){
+    if(!e.data)return;
+    if(e.data.type==='pronto-enable-selector')enable();
+    if(e.data.type==='pronto-disable-selector')disable();
+  });
+  function enable(){
+    enabled=true;document.body.style.cursor='crosshair';
+    document.addEventListener('mouseover',onHover,true);
+    document.addEventListener('click',onClick,true);
+  }
+  function disable(){
+    enabled=false;document.body.style.cursor='';
+    if(hovered){hovered.style.outline='';hovered.style.outlineOffset='';hovered=null;}
+    document.removeEventListener('mouseover',onHover,true);
+    document.removeEventListener('click',onClick,true);
+  }
+  function onHover(e){
+    if(!enabled)return;
+    if(hovered){hovered.style.outline='';hovered.style.outlineOffset='';}
+    hovered=e.target;
+    if(hovered&&hovered!==document.body&&hovered!==document.documentElement){
+      hovered.style.outline='2px dashed #7c3aed';
+      hovered.style.outlineOffset='1px';
+    }
+  }
+  function onClick(e){
+    if(!enabled)return;
+    e.preventDefault();e.stopPropagation();
+    var el=e.target;
+    var sel=buildSelector(el);
+    window.parent.postMessage({
+      type:'pronto-element-selected',
+      selector:sel,
+      tag:el.tagName.toLowerCase(),
+      text:(el.innerText||el.textContent||'').replace(/\\s+/g,' ').trim().slice(0,120),
+      classList:Array.from(el.classList)
+    },'*');
+    disable();
+  }
+})();
+</script>`;
+
+  let html = indexFile.content;
+  if (html.includes("</body>")) {
+    html = html.replace("</body>", selectorScript + "</body>");
+  } else if (html.includes("</html>")) {
+    html = html.replace("</html>", selectorScript + "</html>");
+  } else {
+    html += selectorScript;
+  }
+
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(indexFile.content);
+  res.send(html);
 });
 
 router.put("/projects/:projectId/files/:fileId", async (req, res) => {
@@ -929,6 +1018,26 @@ router.put("/projects/:projectId/files/:fileId", async (req, res) => {
     .returning();
 
   res.json(updated);
+});
+
+// ── Restore specific files to a previous state (client-side undo) ──
+router.post("/projects/:id/restore-files", async (req, res) => {
+  const projectId = parseInt(req.params.id);
+  const { files: fileRestores } = req.body as { files: Array<{ id: number; content: string }> };
+
+  if (!Array.isArray(fileRestores) || fileRestores.length === 0) {
+    res.status(400).json({ error: "files array required" });
+    return;
+  }
+
+  for (const { id, content } of fileRestores) {
+    await db
+      .update(projectFilesTable)
+      .set({ content, updatedAt: new Date() })
+      .where(eq(projectFilesTable.id, id));
+  }
+
+  res.json({ restored: fileRestores.length });
 });
 
 // ── Quick Review: AI screenshots and analyzes the preview (no deploy needed) ──

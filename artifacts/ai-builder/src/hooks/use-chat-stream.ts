@@ -36,6 +36,36 @@ export interface SwarmProgress {
   totalTasks: number;
 }
 
+export interface FileDiff {
+  filename: string;
+  before: string;
+  after: string;
+}
+
+export interface UndoFile {
+  id: number;
+  filename: string;
+  content: string;
+}
+
+export interface SelectedElement {
+  selector: string;
+  tag: string;
+  text?: string;
+}
+
+export interface SendOptions {
+  /** Single attachment (PDF, text, or single image) */
+  attachment?: MessageAttachment;
+  /** Multiple images — takes precedence over attachment when provided */
+  attachments?: MessageAttachment[];
+  focusFileId?: number;
+  /** Snapshot of current file contents for undo/diff (pass before sending) */
+  undoData?: UndoFile[];
+  /** Element the user selected in the preview inspector */
+  selectedElement?: SelectedElement;
+}
+
 // $25 / 1,250,000 credits = $0.00002 per credit
 const USD_PER_CREDIT = 25 / 1_250_000;
 
@@ -57,6 +87,12 @@ export function useChatStream(projectId: number) {
   const [outOfCredits, setOutOfCredits] = useState(false);
   const [fileUpdateVersion, setFileUpdateVersion] = useState(0);
   const [wasInterrupted, setWasInterrupted] = useState(false);
+
+  // Undo / diff state
+  const [fileDiffs, setFileDiffs] = useState<FileDiff[] | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const undoDataRef = useRef<UndoFile[]>([]);
+  const pendingDiffsRef = useRef<FileDiff[]>([]);
 
   // Persisted summary for the last completed request
   const [lastSummary, setLastSummaryState] = useState<RequestSummary | null>(
@@ -114,7 +150,35 @@ export function useChatStream(projectId: number) {
     sendMessage('Please continue from where you left off — complete any unfinished parts.');
   };
 
-  const sendMessage = async (content: string, attachment?: MessageAttachment, focusFileId?: number) => {
+  /** Undo the last Claude change by restoring pre-request file contents. */
+  const undo = async () => {
+    if (!canUndo || undoDataRef.current.length === 0) return;
+    try {
+      await api(`/api/projects/${projectId}/restore-files`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: undoDataRef.current.map(f => ({ id: f.id, content: f.content })) }),
+      });
+      setCanUndo(false);
+      setFileDiffs(null);
+      setFileUpdateVersion((v) => v + 1);
+      queryClient.invalidateQueries({ queryKey: getListProjectMessagesQueryKey(projectId) });
+    } catch (err) {
+      console.error('Undo failed:', err);
+    }
+  };
+
+  const sendMessage = async (content: string, optionsOrAttachment?: SendOptions | MessageAttachment, legacyFocusFileId?: number) => {
+    // Support legacy positional call: sendMessage(content, attachment, focusFileId)
+    let options: SendOptions = {};
+    if (optionsOrAttachment && 'type' in optionsOrAttachment) {
+      options = { attachment: optionsOrAttachment as MessageAttachment, focusFileId: legacyFocusFileId };
+    } else if (optionsOrAttachment) {
+      options = optionsOrAttachment as SendOptions;
+    }
+
+    const { attachment, attachments, focusFileId, undoData, selectedElement } = options;
+
     setIsStreaming(true);
     setStreamingContent('');
     setError(null);
@@ -126,12 +190,23 @@ export function useChatStream(projectId: number) {
     setLastSummary(null);
     setActiveAgents([]);
     setSwarmProgress(null);
+    setFileDiffs(null);
+    setCanUndo(false);
     isThinkingRef.current = false;
     receivedDoneRef.current = false;
+    pendingDiffsRef.current = [];
+
+    // Store undo snapshot
+    undoDataRef.current = undoData ?? [];
 
     abortControllerRef.current = new AbortController();
 
     const messagesKey = getListProjectMessagesQueryKey(projectId);
+    const imagePreviews = attachments
+      ?.filter((a): a is Extract<MessageAttachment, { type: 'image' }> => a.type === 'image')
+      .map(a => a.previewUrl)
+      .filter(Boolean) ?? [];
+
     queryClient.setQueryData(messagesKey, (old: any = []) => [
       ...old,
       {
@@ -140,14 +215,29 @@ export function useChatStream(projectId: number) {
         role: 'user',
         content,
         createdAt: new Date().toISOString(),
-        _imagePreview: attachment?.type === 'image' ? attachment.previewUrl : undefined,
-        _fileName: attachment && attachment.type !== 'image' ? attachment.fileName : undefined,
+        _imagePreview: attachment?.type === 'image' ? attachment.previewUrl : (imagePreviews[0] ?? undefined),
+        _imagePreviews: imagePreviews.length > 1 ? imagePreviews : undefined,
+        _fileName: attachment && attachment.type !== 'image' ? (attachment as any).fileName : undefined,
+        _elementSelector: selectedElement?.selector,
       },
     ]);
 
     // Build request body
-    const bodyObj: Record<string, any> = { content, ...(focusFileId ? { focusFileId } : {}) };
-    if (attachment?.type === 'image') {
+    const bodyObj: Record<string, any> = {
+      content,
+      ...(focusFileId ? { focusFileId } : {}),
+      ...(selectedElement ? { selectedElement } : {}),
+    };
+
+    if (attachments && attachments.length > 0) {
+      // Multi-image path
+      const imageAttachments = attachments.filter(
+        (a): a is Extract<MessageAttachment, { type: 'image' }> => a.type === 'image'
+      );
+      if (imageAttachments.length > 0) {
+        bodyObj.images = imageAttachments.map((a) => ({ data: a.imageData, mimeType: a.imageMimeType }));
+      }
+    } else if (attachment?.type === 'image') {
       bodyObj.imageData = attachment.imageData;
       bodyObj.imageMimeType = attachment.imageMimeType;
     } else if (attachment?.type === 'pdf') {
@@ -159,13 +249,18 @@ export function useChatStream(projectId: number) {
       bodyObj.fileName = attachment.fileName;
     }
 
-    // Serialize then wipe large base64 from memory
+    // Serialize then wipe large base64 from memory (ephemeral)
     const requestBody = JSON.stringify(bodyObj);
     if (attachment?.type === 'image' || attachment?.type === 'pdf') {
       (attachment as any).imageData = null;
     }
     if (attachment?.type === 'text') {
       (attachment as any).fileContent = null;
+    }
+    if (attachments) {
+      for (const a of attachments) {
+        if (a.type === 'image') (a as any).imageData = null;
+      }
     }
 
     try {
@@ -227,6 +322,20 @@ export function useChatStream(projectId: number) {
             }
 
             if (data.type === 'file_update') {
+              // Track diff: compare new content with pre-request snapshot
+              const oldFile = undoDataRef.current.find(f => f.filename === data.filename);
+              if (oldFile && data.content !== undefined) {
+                const existing = pendingDiffsRef.current.find(d => d.filename === data.filename);
+                if (existing) {
+                  existing.after = data.content; // update if same file changed twice
+                } else {
+                  pendingDiffsRef.current.push({
+                    filename: data.filename,
+                    before: oldFile.content,
+                    after: data.content,
+                  });
+                }
+              }
               setFileUpdateVersion((v) => v + 1);
             }
 
@@ -272,7 +381,6 @@ export function useChatStream(projectId: number) {
               const unlimited: boolean = data.unlimited ?? false;
               isUnlimitedRef.current = unlimited;
 
-              // Build the summary from what the server sent back
               const creditsUsed: number = data.creditsUsed ?? (
                 !unlimited && typeof newBalance === 'number' && balanceRef.current !== null
                   ? Math.max(0, balanceRef.current - newBalance)
@@ -296,6 +404,12 @@ export function useChatStream(projectId: number) {
               if (typeof newBalance === 'number') {
                 balanceRef.current = newBalance;
               }
+
+              // Finalize undo/diff
+              if (pendingDiffsRef.current.length > 0 && undoDataRef.current.length > 0) {
+                setFileDiffs([...pendingDiffsRef.current]);
+                setCanUndo(true);
+              }
             }
           } catch {
             // ignore malformed SSE
@@ -314,8 +428,6 @@ export function useChatStream(projectId: number) {
         }
       }
     } finally {
-      // If the stream closed without a `done` event and wasn't user-aborted,
-      // the server was likely killed mid-generation (e.g. Autoscale cycle).
       if (!receivedDoneRef.current && abortControllerRef.current !== null) {
         setWasInterrupted(true);
         setError('Generation was interrupted — the server restarted mid-response.');
@@ -345,5 +457,8 @@ export function useChatStream(projectId: number) {
     resumeGeneration,
     activeAgents,
     swarmProgress,
+    fileDiffs,
+    canUndo,
+    undo,
   };
 }
